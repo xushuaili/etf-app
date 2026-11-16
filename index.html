@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0f172a">
+<title>今日操作</title>
+<style>
+  :root{--bg:#0f172a;--card:#1e293b;--ink:#f8fafc;--sub:#94a3b8;
+        --buy:#16a34a;--sell:#ea580c;--hold:#2563eb;--wait:#7c3aed;--na:#475569}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{margin:0;background:var(--bg);color:var(--ink);padding:16px 14px 24px;
+       font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;
+       max-width:520px;margin:0 auto;min-height:100vh}
+  .foot{text-align:center;font-size:12px;color:var(--sub);padding:16px 0 6px;line-height:1.6}
+  .confirm{width:100%;border:0;border-radius:12px;padding:14px;font-size:15px;font-weight:700;
+           background:#fff;color:#0f172a;margin-top:14px}
+  .confirm:active{opacity:.85}
+  .hero{border-radius:20px;padding:22px 18px;margin-bottom:12px}
+  .a-buy{background:var(--buy)}.a-sell{background:var(--sell)}
+  .a-hold{background:var(--hold)}.a-wait{background:var(--wait)}.a-na{background:var(--na)}
+  .label{font-size:13px;opacity:.9;font-weight:500}
+  .big{font-size:32px;font-weight:800;line-height:1.15;margin:8px 0 6px;letter-spacing:-.5px}
+  .sub{font-size:14px;opacity:.95;line-height:1.5}
+  .row{display:flex;justify-content:space-between;align-items:baseline;
+       background:var(--card);border-radius:14px;padding:14px 16px;margin-bottom:10px}
+  .row .k{font-size:12px;color:var(--sub)}
+  .row .v{font-size:19px;font-weight:700}
+  .row .v small{font-size:12px;font-weight:500;color:var(--sub);margin-left:6px}
+  .up{color:#f87171}.down{color:#4ade80}
+  .thin{background:var(--card);border-radius:14px;padding:14px 16px;margin-bottom:10px;
+        font-size:14px;line-height:1.6}
+  .thin b{font-weight:600}
+  .thin .t{font-size:12px;color:var(--sub);margin-bottom:4px}
+  button{width:100%;border:0;border-radius:14px;padding:17px;font-size:17px;font-weight:700;
+         background:#f8fafc;color:#0f172a}
+  button:active{opacity:.85}
+  .link{color:#93c5fd;font-size:12px;text-decoration:underline;background:none;border:0;
+        padding:0;width:auto;font-weight:500}
+  details{margin-top:4px;font-size:13px;color:#cbd5e1;line-height:1.8}
+  summary{color:var(--sub);font-size:13px;padding:8px 0;cursor:pointer}
+  details p{margin:8px 0 0}
+  details b{color:#f8fafc}
+  .mini{display:inline-block;font-size:11px;color:var(--sub);margin-top:2px}
+  .link{color:#93c5fd;font-size:12px;text-decoration:underline;background:none;border:0;
+        padding:0;width:auto;font-weight:500}
+</style>
+</head>
+<body>
+
+<div id="app"><div class="hero a-na"><div class="label">正在获取…</div>
+<div class="big">稍等</div><div class="sub">正在拉最新行情</div></div></div>
+
+<details>
+  <summary>指标说明 / 状态修正</summary>
+  <p><b>MA200</b>：过去200天平均价，代表长期中枢。</p>
+  <p><b>偏离</b>：现价比中枢贵或便宜多少。高于 +10% 卖卫星仓，跌回 0% 买回来。</p>
+  <p><b>分位</b>：现价在近3年里的位置。100%=最贵（股息率最低），0%=最便宜。</p>
+  <p><b>溢价</b>：场内价比净值贵多少。正数=买贵了，超过 1% 别追。</p>
+  <p id="extra"></p>
+</details>
+
+<div class="foot" id="foot">正在更新…</div>
+
+<script>
+(function(){
+  var ETFS = [
+    {code:"sh512890", name:"红利低波", short:"512890", sell:0.10, buy:0.00, sat:"50%", initIn:true}
+  ];
+  var STORE="etf_state_v4", CACHE="etf_cache_v2";
+
+  function loadState(){ try{return JSON.parse(localStorage.getItem(STORE))||{}}catch(e){return {}} }
+  function saveState(s){ try{localStorage.setItem(STORE,JSON.stringify(s))}catch(e){} }
+  function loadCache(){ try{return JSON.parse(localStorage.getItem(CACHE))||{}}catch(e){return {}} }
+  function saveCache(c){ try{localStorage.setItem(CACHE,JSON.stringify(c))}catch(e){} }
+
+  function jsonp(url, vn, cb){
+    var s=document.createElement("script"); s.charset="GBK";
+    s.src=url+(url.indexOf("?")>=0?"&":"?")+"_var="+vn+"&_="+Date.now();
+    var done=false;
+    s.onload=function(){ if(done)return; done=true; var v=window[vn]; fin(); cb(v||null); };
+    s.onerror=function(){ if(done)return; done=true; fin(); cb(null); };
+    function fin(){ try{delete window[vn]}catch(e){window[vn]=undefined} if(s.parentNode)s.parentNode.removeChild(s); }
+    document.body.appendChild(s);
+  }
+
+  function fetchQuote(codes, cb){
+    var s=document.createElement("script"); s.charset="GBK";
+    s.src="https://qt.gtimg.cn/q="+codes.join(",")+"&_="+Date.now();
+    s.onload=function(){
+      var out={};
+      codes.forEach(function(c){ var r=window["v_"+c]; if(typeof r==="string") out[c]=r.split("~"); });
+      if(s.parentNode)s.parentNode.removeChild(s); cb(out);
+    };
+    s.onerror=function(){ if(s.parentNode)s.parentNode.removeChild(s); cb(null); };
+    document.body.appendChild(s);
+  }
+
+  function fetchKline(code, cb){
+    jsonp("https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param="+code+",day,,,320,qfq",
+      "k_"+code+"_"+Date.now(), function(o){
+        try{
+          var d=o.data[code], a=d.qfqday||d.day||[];
+          cb(a.map(function(x){return parseFloat(x[2])}).filter(function(v){return isFinite(v)&&v>0}));
+        }catch(e){ cb(null); }
+      });
+  }
+
+  function pct(v,d){ return isFinite(v)?(v*100).toFixed(d===undefined?1:d)+"%":"—"; }
+  function price(v){ return isFinite(v)?v.toFixed(3):"—"; }
+
+  function stateOf(code, dev, sell, buy, initIn){
+    var st=loadState();
+    if(st[code]!=="IN" && st[code]!=="OUT"){
+      st[code] = (dev>=sell)?"OUT":(dev<=buy)?"IN":(initIn?"IN":"OUT");
+      saveState(st);
+    }
+    return st[code];
+  }
+
+  function head(e){
+    var q=e.quote, c=e.closes, p=q?parseFloat(q[3]):NaN, pv=q?parseFloat(q[4]):NaN;
+    if(!isFinite(p)) p=c&&c.length?c[c.length-1]:NaN;
+    var chg=(isFinite(p)&&isFinite(pv)&&pv)?p/pv-1:NaN;
+    var ma=NaN;
+    if(c&&c.length>=200){ var s=0; for(var i=c.length-200;i<c.length;i++)s+=c[i]; ma=s/200; }
+    return {p:p,chg:chg,ma:ma,dev:(isFinite(ma)&&isFinite(p))?p/ma-1:NaN,c:c,q:q};
+  }
+
+  function heroHTML(e){
+    var h=head(e);
+    if(!isFinite(h.dev)) return '<div class="hero a-na"><div class="label">'+e.name+' '+e.short+
+      '</div><div class="big">数据不足</div><div class="sub">历史K线不够200天</div></div>';
+
+    var st=stateOf(e.code,h.dev,e.sell,e.buy,e.initIn), txt,cls,sub,need=false,dir="";
+    if(st==="IN" && h.dev>=e.sell){
+      cls="a-sell"; txt="卖出卫星仓"; need=true; dir="OUT";
+      sub="已涨到卖出线，卖掉卫星仓（总仓位的 "+e.sat+"），底仓不动";
+    }else if(st==="OUT" && h.dev<=e.buy){
+      cls="a-buy"; txt="买回卫星仓"; need=true; dir="IN";
+      sub="已跌到买入线，把卫星仓买回来（总仓位的 "+e.sat+"）";
+    }else if(st==="IN"){
+      cls="a-hold"; txt="什么都不用做";
+      sub="再涨 "+pct(e.sell-h.dev)+" 到 "+price(h.ma*(1+e.sell))+" 才卖";
+    }else{
+      cls="a-wait"; txt="等待，不要买";
+      sub="跌到 "+price(h.ma*(1+e.buy))+"（还需 "+pct(h.dev-e.buy)+"）才买";
+    }
+    var chgCls = h.chg>=0?"up":"down";
+    var chgTxt = isFinite(h.chg)?((h.chg>=0?"+":"")+pct(h.chg,2)):"";
+    return '<div class="hero '+cls+'">'+
+      '<div class="label">'+e.name+' '+e.short+'</div>'+
+      '<div class="big">'+txt+'</div>'+
+      '<div class="sub">'+sub+'</div>'+
+      '<div class="row" style="background:rgba(0,0,0,.18);margin:14px 0 0">'+
+        '<span class="v">'+price(h.p)+'<small class="'+chgCls+'">'+chgTxt+'</small></span>'+
+        '<span class="k">MA200 '+price(h.ma)+' · 偏离 '+(h.dev>=0?"+":"")+pct(h.dev)+'</span>'+
+      '</div>'+
+      (need?'<button class="confirm" data-confirm="'+e.code+'" data-dir="'+dir+'">我已执行，更新状态</button>':'')+
+      '</div>';
+  }
+
+  function thinHTML(e){
+    var h=head(e);
+    if(!isFinite(h.dev)) return "";
+    var st=stateOf(e.code,h.dev,e.sell,e.buy,e.initIn);
+    var line,color;
+    if(st==="IN" && h.dev>=e.sell){ line="卖出卫星仓"; color="var(--sell)"; }
+    else if(st==="OUT" && h.dev<=e.buy){ line="买回卫星仓"; color="var(--buy)"; }
+    else if(st==="IN"){ line="持有，"+price(h.ma*(1+e.sell))+" 以上再卖"; color="var(--hold)"; }
+    else { line="等待，跌到 "+price(h.ma*(1+e.buy))+" 再买"; color="var(--sub)"; }
+    return '<div class="thin"><div class="t">'+e.name+' '+e.short+'（观察，未持仓）</div>'+
+      '<b style="color:'+color+'">'+line+'</b>'+
+      '<div class="mini">现价 '+price(h.p)+' · MA200 '+price(h.ma)+' · 偏离 '+(h.dev>=0?"+":"")+pct(h.dev)+'</div></div>';
+  }
+
+  function extras(data){
+    var out=[];
+    data.forEach(function(e){
+      var h=head(e), prem=NaN;
+      if(h.q){ var i=h.q.indexOf("CNY"); if(i>5){ var v=parseFloat(h.q[i-5]); if(isFinite(v)&&Math.abs(v)<20) prem=v; } }
+      var pctile=NaN;
+      if(h.c&&h.c.length){ var w=h.c.slice(-750); pctile=w.filter(function(v){return v<=h.p}).length/w.length; }
+      out.push(e.short+"：溢价 "+(isFinite(prem)?(prem>=0?"+":"")+prem.toFixed(2)+"%":"—")+
+        " · 3年分位 "+(isFinite(pctile)?Math.round(pctile*100)+"%":"—"));
+    });
+    var st=loadState();
+    var btns=ETFS.map(function(e){
+      var cur=st[e.code]||"—";
+      return '<button class="link" data-code="'+e.code+'">'+e.short+'：当前'+
+        (cur==="IN"?"持有卫星仓":"空仓")+' → 点此改为'+(cur==="IN"?"空仓":"持有")+'</button>';
+    }).join("<br>");
+    document.getElementById("extra").innerHTML = out.join("<br>")+"<br><br>"+btns;
+    Array.prototype.forEach.call(document.querySelectorAll("[data-code]"), function(b){
+      b.onclick=function(){
+        var c=b.getAttribute("data-code"); var s=loadState();
+        s[c]=(s[c]==="IN")?"OUT":"IN"; saveState(s); refresh();
+      };
+    });
+  }
+
+  function render(list){
+    var html="";
+    if(list[0]) html+=heroHTML(list[0]);
+    for(var i=1;i<list.length;i++) html+=thinHTML(list[i]);
+    document.getElementById("app").innerHTML=html;
+    extras(list);
+    Array.prototype.forEach.call(document.querySelectorAll("[data-confirm]"), function(b){
+      b.onclick=function(){
+        var s=loadState();
+        s[b.getAttribute("data-confirm")]=b.getAttribute("data-dir");
+        saveState(s); refresh();
+      };
+    });
+  }
+
+  var lastFetch=0, busy=false;
+
+  function refresh(){
+    if(busy) return;
+    busy=true; lastFetch=Date.now();
+    var cache=loadCache(), need=ETFS.length, out=[];
+    ETFS.forEach(function(e){
+      fetchKline(e.code, function(c){
+        if(!c||!c.length) c=(cache[e.code]&&cache[e.code].c)||null;
+        else { cache[e.code]={c:c.slice(-800)}; }
+        out.push({code:e.code,name:e.name,short:e.short,sell:e.sell,buy:e.buy,sat:e.sat,
+                  initIn:e.initIn,closes:c});
+        if(--need===0) afterKline(cache,out);
+      });
+    });
+  }
+
+  function afterKline(cache,out){
+    saveCache(cache);
+    fetchQuote(ETFS.map(function(e){return e.code}), function(qs){
+      var list=out.map(function(o){
+        var q=qs?qs[o.code]:null;
+        if(q && (!isFinite(parseFloat(q[3])))) q=null;
+        return {code:o.code,name:o.name,short:o.short,sell:o.sell,buy:o.buy,sat:o.sat,
+                initIn:o.initIn,closes:o.closes,quote:q};
+      });
+      list.sort(function(a,b){ return a.short==="512890"?-1:1; });
+      render(list);
+      busy=false;
+      var d=new Date();
+      var hh=("0"+d.getHours()).slice(-2), mm=("0"+d.getMinutes()).slice(-2);
+      document.getElementById("foot").textContent =
+        "更新于 "+hh+":"+mm+" · 交易时段每2分钟自动刷新";
+    });
+  }
+
+  // 自动刷新: 交易时段(工作日9:15-15:10)每2分钟, 其余每30分钟; 页面回到前台立即刷新
+  function tick(){
+    var d=new Date(), m=d.getHours()*60+d.getMinutes(), wd=d.getDay();
+    var trading = wd>=1 && wd<=5 && m>=555 && m<=910;
+    var gap = trading ? 120000 : 1800000;
+    if(Date.now()-lastFetch >= gap) refresh();
+  }
+  setInterval(tick, 30000);
+  document.addEventListener("visibilitychange", function(){
+    if(!document.hidden) refresh();
+  });
+
+  refresh();
+})();
+</script>
+</body>
+</html>
