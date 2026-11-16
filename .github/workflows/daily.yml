@@ -1,0 +1,30 @@
+name: daily-status
+
+on:
+  schedule:
+    # 15:10 北京时间 = 07:10 UTC，周一到周五
+    - cron: '10 7 * * 1-5'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: 计算并写入 data/status.json
+        run: python scripts/daily_status.py
+      - name: 提交结果
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/status.json
+          if git diff --staged --quiet; then echo "no change"; else
+            git commit -m "update daily status"
+            git push
+          fi
