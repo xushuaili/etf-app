@@ -17,6 +17,9 @@
   .confirm{width:100%;border:0;border-radius:12px;padding:14px;font-size:15px;font-weight:700;
            background:#fff;color:#0f172a;margin-top:14px}
   .confirm:active{opacity:.85}
+  .chips{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+  .chips span{background:rgba(255,255,255,.18);border-radius:10px;padding:6px 10px;font-size:12px;
+              font-weight:500}
   .hero{border-radius:20px;padding:22px 18px;margin-bottom:12px}
   .a-buy{background:var(--buy)}.a-sell{background:var(--sell)}
   .a-hold{background:var(--hold)}.a-wait{background:var(--wait)}.a-na{background:var(--na)}
@@ -52,7 +55,7 @@
 <div id="app"><div class="hero a-na"><div class="label">正在获取…</div>
 <div class="big">稍等</div><div class="sub">正在拉最新行情</div></div></div>
 
-<details>
+<details open>
   <summary>指标说明 / 状态修正</summary>
   <p><b>MA200</b>：过去200天平均价，代表长期中枢。</p>
   <p><b>偏离</b>：现价比中枢贵或便宜多少。高于 +10% 卖卫星仓，跌回 0% 买回来。</p>
@@ -125,7 +128,12 @@
     var chg=(isFinite(p)&&isFinite(pv)&&pv)?p/pv-1:NaN;
     var ma=NaN;
     if(c&&c.length>=200){ var s=0; for(var i=c.length-200;i<c.length;i++)s+=c[i]; ma=s/200; }
-    return {p:p,chg:chg,ma:ma,dev:(isFinite(ma)&&isFinite(p))?p/ma-1:NaN,c:c,q:q};
+    var prem=NaN;
+    if(q){ var k=q.indexOf("CNY"); if(k>5){ var v=parseFloat(q[k-5]); if(isFinite(v)&&Math.abs(v)<20) prem=v; } }
+    var pctile=NaN;
+    if(c&&c.length&&isFinite(p)){ var w=c.slice(-750); pctile=w.filter(function(x){return x<=p}).length/w.length; }
+    return {p:p,chg:chg,ma:ma,dev:(isFinite(ma)&&isFinite(p))?p/ma-1:NaN,
+            prem:prem,pctile:pctile,c:c,q:q};
   }
 
   function heroHTML(e){
@@ -149,6 +157,9 @@
     }
     var chgCls = h.chg>=0?"up":"down";
     var chgTxt = isFinite(h.chg)?((h.chg>=0?"+":"")+pct(h.chg,2)):"";
+    var pl = !isFinite(h.pctile) ? "—" :
+      (h.pctile>=0.8?"很贵":h.pctile>=0.6?"偏贵":h.pctile>=0.4?"中等":h.pctile>=0.2?"偏便宜":"很便宜");
+    var premTxt = isFinite(h.prem) ? ((h.prem>=0?"+":"")+h.prem.toFixed(2)+"%") : "—";
     return '<div class="hero '+cls+'">'+
       '<div class="label">'+e.name+' '+e.short+'</div>'+
       '<div class="big">'+txt+'</div>'+
@@ -156,6 +167,10 @@
       '<div class="row" style="background:rgba(0,0,0,.18);margin:14px 0 0">'+
         '<span class="v">'+price(h.p)+'<small class="'+chgCls+'">'+chgTxt+'</small></span>'+
         '<span class="k">MA200 '+price(h.ma)+' · 偏离 '+(h.dev>=0?"+":"")+pct(h.dev)+'</span>'+
+      '</div>'+
+      '<div class="chips">'+
+        '<span>溢价 '+premTxt+'</span>'+
+        '<span>3年分位 '+(isFinite(h.pctile)?Math.round(h.pctile*100)+"%":"—")+'（'+pl+'）</span>'+
       '</div>'+
       (need?'<button class="confirm" data-confirm="'+e.code+'" data-dir="'+dir+'">我已执行，更新状态</button>':'')+
       '</div>';
@@ -176,22 +191,13 @@
   }
 
   function extras(data){
-    var out=[];
-    data.forEach(function(e){
-      var h=head(e), prem=NaN;
-      if(h.q){ var i=h.q.indexOf("CNY"); if(i>5){ var v=parseFloat(h.q[i-5]); if(isFinite(v)&&Math.abs(v)<20) prem=v; } }
-      var pctile=NaN;
-      if(h.c&&h.c.length){ var w=h.c.slice(-750); pctile=w.filter(function(v){return v<=h.p}).length/w.length; }
-      out.push(e.short+"：溢价 "+(isFinite(prem)?(prem>=0?"+":"")+prem.toFixed(2)+"%":"—")+
-        " · 3年分位 "+(isFinite(pctile)?Math.round(pctile*100)+"%":"—"));
-    });
     var st=loadState();
     var btns=ETFS.map(function(e){
       var cur=st[e.code]||"—";
       return '<button class="link" data-code="'+e.code+'">'+e.short+'：当前'+
         (cur==="IN"?"持有卫星仓":"空仓")+' → 点此改为'+(cur==="IN"?"空仓":"持有")+'</button>';
     }).join("<br>");
-    document.getElementById("extra").innerHTML = out.join("<br>")+"<br><br>"+btns;
+    document.getElementById("extra").innerHTML = btns;
     Array.prototype.forEach.call(document.querySelectorAll("[data-code]"), function(b){
       b.onclick=function(){
         var c=b.getAttribute("data-code"); var s=loadState();
