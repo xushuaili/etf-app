@@ -272,11 +272,11 @@
     var d=new Date(), m=d.getHours()*60+d.getMinutes(), wd=d.getDay();
     var trading = wd>=1 && wd<=5 && m>=555 && m<=910;
     var gap = trading ? 120000 : 1800000;
-    if(Date.now()-lastFetch >= gap) refresh();
+    if(Date.now()-lastFetch >= gap){ refresh(); loadStatus(); }
   }
   setInterval(tick, 30000);
   document.addEventListener("visibilitychange", function(){
-    if(!document.hidden) refresh();
+    if(!document.hidden){ refresh(); loadStatus(); }
   });
 
   // 每日跟踪差(由 GitHub Actions 收盘后写入 data/status.json)
