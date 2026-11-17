@@ -267,7 +267,7 @@
       }
       if(st==="FULL")
         return {cls:"s-hold", txt:"持有", note:"站在 MA200 上 "+pct(h.dev)+"，闸门开着，不用动"};
-      return {cls:"s-wait", txt:"空仓等待", note:"低于 MA200 "+pct(-h.dev)+"，闸门关着，站上 "+price(h.ma)+" 才买，不抄底"};
+      return {cls:"s-wait", txt:"等待，不要买", note:"低于 MA200 "+pct(-h.dev)+"，闸门关着，站上 "+price(h.ma)+" 才买，不抄底"};
     }
     var lowLine = price(h.ma*(1+e.buy));
     // 双条件（仅配置了 premSell/premBuy 的标的启用，目前是 513100）
