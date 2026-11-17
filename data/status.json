@@ -1,10 +1,10 @@
 {
-  "updated": "2026-11-17 08:23",
+  "updated": "2026-11-17 09:06",
   "etfDate": "2026-11-17",
   "price": 1.26,
   "ma200": 1.1784,
   "dev": 0.06924,
-  "track20": null,
-  "trackDate": null,
-  "error": "指数数据: <urlopen error [Errno 104] Connection reset by peer>"
+  "track20": 0.00297,
+  "trackDate": "2026-10-19~2026-11-16",
+  "error": null
 }
