@@ -72,9 +72,9 @@
   <p><b>仓位上限</b>：由「波动率目标」决定 —— 近60个交易日组合年化波动超过 10% 就按比例降仓（10%÷实际波动），低于就满仓，下限 30%。降仓时三只资产按 70/20/10 <b>等比缩减</b>。</p>
   <p><b>实际持仓</b>：仓位上限再乘各资产自己的网格/闸门系数。比如黄金闸门关着，那 10% 是现金，实际持仓就只有 90%。</p>
   <p><b>512890 红利低波（70%）</b>：底仓 50% 永不动，卫星 50% 做网格。偏离 MA200 高于 <b>+10%</b> 卖卫星，跌回 <b>0%</b> 买回。</p>
-  <p><b>513100 纳指100（20%）</b>：规则同上 —— 底仓 50% 永不动，卫星 50% 做网格。但阈值放宽到 <b>+20% 减 / +8% 加回</b>。纳指是趋势资产，用 10% 的小阈值会被牛市反复削仓。</p>
+  <p><b>513100 纳指100（20%）</b>：底仓 50% 永不动，卫星 50% 做网格。<b>双条件触发</b>：偏离 MA200 ≥ <b>+15%</b> 或 溢价 ≥ <b>10%</b>，满足任一就卖卫星仓；要买回必须同时满足 偏离 ≤ +8% <b>且</b> 溢价 ≤ 3%。溢价高于 3% 一律不买、不加仓。</p>
   <p><b>518880 黄金（10%）</b>：只做闸门，不做网格。收盘价站上 MA200 才持有，跌破就清空。现在闸门关着就不买，不追。</p>
-  <p><b>溢价</b>：现价 ÷ 单位净值 − 1，净值取腾讯行情官方净值字段。正数=买贵了。警戒线：512890 与 518880 超过 <b>1%</b> 别追；513100 是 QDII，额度受限长期高溢价，超过 <b>3%</b> 就别买。</p>
+  <p><b>溢价</b>：现价 ÷ 单位净值 − 1，净值取腾讯行情官方净值字段。正数=买贵了。警戒线：512890 与 518880 超过 <b>1%</b> 别追；513100 是 QDII 额度受限、长期高溢价，超过 <b>3%</b> 一律不买，超过 <b>10%</b> 反而要减卫星仓。</p>
   <p><b>价格分位</b>：现价在近3年价格里的位置（不是估值分位）。100%=最贵，0%=最便宜。</p>
   <p><b>跟踪差(20日)</b>：仅 512890 —— 近20个交易日 ETF 涨幅减去中证红利低波指数涨幅。正常是 0~+1% 的小正数；低于 <b>-3%</b> 说明 ETF 跟丢指数，需要人工核对。每天收盘后由 GitHub 自动更新。</p>
   <p id="extra"></p>
@@ -90,12 +90,12 @@
     {code:"sh512890", name:"红利低波", short:"512890", w:0.70, mode:"grid",
      sell:0.10, buy:0.00, initIn:true, premMax:0.01},
     {code:"sh513100", name:"纳指100",  short:"513100", w:0.20, mode:"grid",
-     sell:0.20, buy:0.08, initIn:true, premMax:0.03},
+     sell:0.15, buy:0.08, initIn:false, premMax:0.03, premSell:0.10, premBuy:0.03},
     {code:"sh518880", name:"黄金",     short:"518880", w:0.10, mode:"gate",
      sell:0.00, buy:0.00, initIn:false, premMax:0.01}
   ];
   var TARGET_VOL = 0.10, VOL_WIN = 60, MIN_POS = 0.30;
-  var STORE="etf_state_v5", CACHE="etf_cache_v3";
+  var STORE="etf_state_v7", CACHE="etf_cache_v3";
 
   function loadState(){ try{return JSON.parse(localStorage.getItem(STORE))||{}}catch(e){return {}} }
   function saveState(s){ try{localStorage.setItem(STORE,JSON.stringify(s))}catch(e){} }
@@ -156,8 +156,9 @@
       var init;
       // gate 模式初始一律视为空仓：只有按过"我已执行"才算真的持有，
       // 否则黄金站上 MA200 时页面会误报"持有"，买入信号永远不会出现
-      if(e.mode==="gate") init = "OUT";
-      else init = (dev>=e.sell)?"OUT":(dev<=e.buy)?"IN":(e.initIn?"IN":"OUT");
+      // initIn=false 同样一律视为空仓，避免把"没买过的资产"误判成持有并提示卖出
+      if(e.mode==="gate" || !e.initIn) init = "OUT";
+      else init = (dev>=e.sell)?"OUT":"IN";
       st[e.code]=init; saveState(st);
     }
     return st[e.code];
@@ -261,13 +262,27 @@
       return {cls:"s-wait", txt:"空仓等待", note:"低于 MA200 "+pct(-h.dev)+"，闸门关着，站上 "+price(h.ma)+" 才买，不抄底"};
     }
     var lowLine = price(h.ma*(1+e.buy));
-    if(st==="IN" && h.dev>=e.sell)
-      return {cls:"s-sell", txt:"卖出卫星仓", note:"偏离到 +"+(e.sell*100).toFixed(0)+"% 卖出线，卖掉这只的卫星仓（占该资产一半，底仓 50% 不动）", need:true, dir:"OUT"};
-    if(st==="OUT" && h.dev<=e.buy)
-      return {cls:"s-buy", txt:"买回卫星仓", note:"跌到偏离 +"+(e.buy*100).toFixed(0)+"% 加回线，买回这只的卫星仓（占该资产一半）", need:true, dir:"IN"};
-    if(st==="IN")
-      return {cls:"s-hold", txt:"持有", note:"再涨 "+pct(e.sell-h.dev)+" 到 "+price(h.ma*(1+e.sell))+" 才减卫星仓"};
-    return {cls:"s-wait", txt:"等待，不要买", note:"跌到 "+lowLine+"（还需 "+pct(h.dev-e.buy)+"）才买回卫星仓"};
+    // 双条件（仅配置了 premSell/premBuy 的标的启用，目前是 513100）
+    var sellHit = h.dev>=e.sell || (e.premSell && isFinite(h.prem) && h.prem>=e.premSell);
+    var buyOk  = h.dev<=e.buy && (!e.premBuy || !isFinite(h.prem) || h.prem<=e.premBuy);
+    var whySell = (e.premSell && isFinite(h.prem) && h.prem>=e.premSell)
+      ? ("溢价 "+pct(h.prem)+" 已超过 "+(e.premSell*100).toFixed(0)+"%，卖卫星仓（卖贵不卖便宜）")
+      : ("偏离到 +"+(e.sell*100).toFixed(0)+"% 卖出线，卖掉这只的卫星仓（占该资产一半，底仓 50% 不动）");
+    if(st==="IN" && sellHit)
+      return {cls:"s-sell", txt:"卖出卫星仓", note:whySell, need:true, dir:"OUT"};
+    if(st==="OUT" && buyOk)
+      return {cls:"s-buy", txt:"买回卫星仓", note:"偏离回到 +"+(e.buy*100).toFixed(0)+"% 且溢价降到 "+(e.premBuy*100).toFixed(0)+"% 以内，买回这只的卫星仓（占该资产一半）", need:true, dir:"IN"};
+    if(st==="IN"){
+      var note="再涨 "+pct(e.sell-h.dev)+" 到 "+price(h.ma*(1+e.sell))+" 才减卫星仓";
+      if(e.premSell) note += "，或溢价涨到 "+(e.premSell*100).toFixed(0)+"% 也减";
+      return {cls:"s-hold", txt:"持有", note:note};
+    }
+    var waitNote="跌到 "+lowLine+"（还需 "+pct(h.dev-e.buy)+"）才买回卫星仓";
+    if(e.premBuy){
+      if(isFinite(h.prem) && h.prem>e.premBuy) waitNote="溢价 "+pct(h.prem)+" 高于 "+(e.premBuy*100).toFixed(0)+"%，不买（等溢价回落）";
+      else waitNote="等偏离回到 +"+(e.buy*100).toFixed(0)+"% 以下才买回";
+    }
+    return {cls:"s-wait", txt:"等待，不要买", note:waitNote};
   }
 
   function cardHTML(e){
