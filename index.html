@@ -37,7 +37,7 @@
   .card .top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
   .card .nm{font-size:14px;font-weight:700}
   .card .nm em{font-style:normal;color:var(--sub);font-weight:500;font-size:12px;margin-left:6px}
-  .card .wt{font-size:12px;color:var(--sub);white-space:nowrap}
+  .card .wt{font-size:12px;color:var(--sub);white-space:nowrap;text-align:right;line-height:1.35}
   .card .act{font-size:20px;font-weight:800;margin:8px 0 2px}
   .card .note{font-size:12px;color:#cbd5e1;line-height:1.5}
   .card .px{display:flex;justify-content:space-between;align-items:baseline;margin-top:10px;
@@ -69,8 +69,8 @@
 
 <details open>
   <summary>规则说明 / 状态修正</summary>
-  <p><b>仓位上限</b>：由「波动率目标」决定 —— 近60个交易日组合年化波动超过 10% 就按比例降仓（10%÷实际波动），低于就满仓，下限 30%。降仓时三只资产按 70/20/10 <b>等比缩减</b>。</p>
-  <p><b>实际持仓</b>：仓位上限再乘各资产自己的网格/闸门系数。比如黄金闸门关着，那 10% 是现金，实际持仓就只有 90%。</p>
+  <p><b>仓位上限</b>：<b>10% ÷ 近60个交易日组合年化波动</b>，超过 100% 按 100% 算，最低 30%。比如实测波动 12.5%，上限就是 80%。</p>
+  <p><b>应持（卡片右上角）</b>：这只现在该占总资金的百分比 = <b>权重 × 仓位上限 × 网格系数</b>。网格系数：卫星仓在=100%，卫星仓已卖=50%；黄金闸门关着=0%。例：黄金权重 10%，上限 80%，闸门关着 → 应持 0%（那 8% 是现金）。</p>
   <p><b>512890 红利低波（70%）</b>：底仓 50% 永不动，卫星 50% 做网格。偏离 MA200 高于 <b>+10%</b> 卖卫星，跌回 <b>0%</b> 买回。</p>
   <p><b>513100 纳指100（20%）</b>：底仓 50% 永不动，卫星 50% 做网格。<b>双条件触发</b>：偏离 MA200 ≥ <b>+15%</b> 或 溢价 ≥ <b>10%</b>，满足任一就卖卫星仓；要买回必须同时满足 偏离 ≤ +8% <b>且</b> 溢价 ≤ 3%。溢价高于 3% 一律不买、不加仓。</p>
   <p><b>518880 黄金（10%）</b>：只做闸门，不做网格。收盘价站上 MA200 才持有，跌破就清空。现在闸门关着就不买，不追。</p>
@@ -285,10 +285,10 @@
     return {cls:"s-wait", txt:"等待，不要买", note:waitNote};
   }
 
-  function cardHTML(e){
+  function cardHTML(e, volPos){
     var h=head(e);
     if(!isFinite(h.dev)) return '<div class="card"><div class="top"><span class="nm">'+e.name+
-      '<em>'+e.short+'</em></span><span class="wt">'+pct(e.w,0)+'</span></div>'+
+      '<em>'+e.short+'</em></span><span class="wt">权重 '+pct(e.w,0)+'</span></div>'+
       '<div class="act">数据不足</div><div class="note">历史K线不够200天</div></div>';
     var a=actionOf(e,h);
     var chgCls=h.chg>=0?"up":"down";
@@ -307,7 +307,8 @@
       '</div>'+premTip;
     return '<div class="card '+a.cls+'">'+
       '<div class="top"><span class="nm">'+e.name+'<em>'+e.short+'</em></span>'+
-        '<span class="wt">权重 '+pct(e.w,0)+'</span></div>'+
+        '<span class="wt">应持 <b style="font-size:15px;color:#f8fafc">'+pct(e.w*volPos*posOf(e,h),0)+
+        '</b><br>权重 '+pct(e.w,0)+'</span></div>'+
       '<div class="act">'+a.txt+'</div>'+
       '<div class="note">'+a.note+'</div>'+
       '<div class="px">'+
@@ -320,22 +321,21 @@
   }
 
   function heroHTML(vol){
+    var pos=targetPos(vol);
     var acts=[], cards="", expo=0;
     ETFS.forEach(function(e){
       var h=head(e);
-      if(!isFinite(h.dev)){ cards+=cardHTML(e); return; }
+      if(!isFinite(h.dev)){ cards+=cardHTML(e,pos); return; }
       var a=actionOf(e,h);
       if(a.need) acts.push(e.short+" "+a.txt);
       expo += e.w * posOf(e,h);          // 各资产实际仓位（未乘波动率系数）
-      cards+=cardHTML(e);
+      cards+=cardHTML(e,pos);
     });
-    var pos=targetPos(vol);
     var volTxt=isFinite(vol)?(vol*100).toFixed(1)+"%":"—";
     var cls="a-hold", txt="什么都不用做", sub;
     if(acts.length){ cls="a-sell"; txt=acts[0]; }
-    // 说明：上限来自波动率目标；实际持仓还要乘各资产的网格/闸门系数
-    sub="仓位上限 "+pct(pos,0)+" · 实际持仓 "+pct(expo*pos,0)+
-        " · 波动 "+volTxt+"（目标 10%）";
+    // 仓位上限 = 10% ÷ 实际波动（下限30%）；各资产"应持"= 权重 × 上限 × 网格系数
+    sub="仓位上限 "+pct(pos,0)+"（波动 "+volTxt+" / 目标 10%）· 合计应持 "+pct(expo*pos,0);
     if(acts.length>1) sub = acts.slice(1).join(" · ")+" ｜ "+sub;
     var head2='<div class="hero '+cls+'">'+
       '<div class="label">今天</div>'+
