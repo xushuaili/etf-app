@@ -75,9 +75,9 @@
   <summary>触发规则 / 名词 / 状态修正</summary>
   <table class="rules">
     <tr><th>标的</th><th>减仓</th><th>加仓</th></tr>
-    <tr><td>512890<br><i>70%</i></td><td>偏离 ≥ +10%</td><td>偏离 ≤ 0%</td></tr>
+    <tr><td>512890<br><i>70%</i></td><td>偏离 ≥ +10%</td><td>偏离 ≤ 0% 且 溢价 ≤ 1%</td></tr>
     <tr><td>513100<br><i>20%</i></td><td>偏离 ≥ +15%<br>或 溢价 ≥ 10%</td><td>偏离 ≤ +8%<br>且 溢价 ≤ 3%</td></tr>
-    <tr><td>518880<br><i>10%</i></td><td>跌破 MA200</td><td>站上 MA200</td></tr>
+    <tr><td>518880<br><i>10%</i></td><td>跌破 MA200</td><td>站上 MA200 且 溢价 ≤ 1%</td></tr>
   </table>
   <p>减仓只卖卫星仓（该资产的一半），底仓 50% 不动。加仓必须同时满足两个条件。</p>
   <p><b>溢价</b> = 现价 ÷ 净值 − 1。512890、518880 超 1% 别追；513100 超 3% 不买、超 10% 减卫星仓。</p>
@@ -260,16 +260,20 @@
     if(e.mode==="gate"){
       if(st==="FULL" && h.dev<=0)
         return {cls:"s-sell", txt:"清空黄金", note:"跌破 MA200，闸门关闭，全部卖出（占"+pct(e.w,0)+"总仓位）", need:true, dir:"NONE"};
-      if(st==="NONE" && h.dev>0)
+      if(st==="NONE" && h.dev>0){
+        if(isFinite(h.prem) && e.premMax && h.prem>e.premMax)
+          return {cls:"s-wait", txt:"等待，不要买", note:"虽站回 MA200，但溢价 "+pct(h.prem)+" 超过 "+(e.premMax*100).toFixed(0)+"%，不追高，等溢价回落"};
         return {cls:"s-buy", txt:"买入黄金", note:"站回 MA200，闸门打开，可买入（占"+pct(e.w,0)+"总仓位）", need:true, dir:"FULL"};
+      }
       if(st==="FULL")
         return {cls:"s-hold", txt:"持有", note:"站在 MA200 上 "+pct(h.dev)+"，闸门开着，不用动"};
       return {cls:"s-wait", txt:"空仓等待", note:"低于 MA200 "+pct(-h.dev)+"，闸门关着，站上 "+price(h.ma)+" 才买，不抄底"};
     }
     var lowLine = price(h.ma*(1+e.buy));
     // 双条件（仅配置了 premSell/premBuy 的标的启用，目前是 513100）
+    var premCap = e.premBuy || e.premMax;   // 买回/建仓的溢价上限：513100 3%，512890 1%
     var sellHit = h.dev>=e.sell || (e.premSell && isFinite(h.prem) && h.prem>=e.premSell);
-    var buyOk  = h.dev<=e.buy && (!e.premBuy || !isFinite(h.prem) || h.prem<=e.premBuy);
+    var buyOk  = h.dev<=e.buy && (!premCap || !isFinite(h.prem) || h.prem<=premCap);
     var whySell = (e.premSell && isFinite(h.prem) && h.prem>=e.premSell)
       ? ("溢价 "+pct(h.prem)+" 已超过 "+(e.premSell*100).toFixed(0)+"%，卖卫星仓（卖贵不卖便宜）")
       : ("偏离到 +"+(e.sell*100).toFixed(0)+"% 卖出线，卖掉这只的卫星仓（占该资产一半，底仓 50% 不动）");
@@ -289,6 +293,8 @@
         return {cls:"s-wait", txt:"等待，不要买", note:"溢价 "+pct(h.prem)+" 高于 "+(e.premBuy*100).toFixed(0)+"%，不买（等溢价回落到 "+(e.premBuy*100).toFixed(0)+"% 以内）"};
       return {cls:"s-wait", txt:"等待，不要买", note:"等偏离回到 +"+(e.buy*100).toFixed(0)+"% 以下再建仓"};
     }
+    if(isFinite(h.prem) && e.premMax && h.prem>e.premMax)
+      return {cls:"s-wait", txt:"等待，不要买", note:"偏离到了，但溢价 "+pct(h.prem)+" 超过 "+(e.premMax*100).toFixed(0)+"%，不追，等溢价回落再买"};
     return {cls:"s-wait", txt:"等待，不要买", note:"跌到 "+lowLine+"（还需 "+pct(h.dev-e.buy)+"）才买回卫星仓"};
   }
 
@@ -334,16 +340,16 @@
       var h=head(e);
       if(!isFinite(h.dev)){ cards+=cardHTML(e,pos); return; }
       var a=actionOf(e,h);
-      if(a.need) acts.push(e.short+" "+a.txt);
+      if(a.need) acts.push({t:e.short+" "+a.txt, c:(a.cls==="s-buy"?"a-buy":"a-sell")});
       expo += e.w * posOf(e,h);          // 各资产实际仓位（未乘波动率系数）
       cards+=cardHTML(e,pos);
     });
     var volTxt=isFinite(vol)?(vol*100).toFixed(1)+"%":"—";
     var cls="a-hold", txt="什么都不用做", sub;
-    if(acts.length){ cls="a-sell"; txt=acts[0]; }
+    if(acts.length){ cls=acts[0].c; txt=acts[0].t; }
     // 仓位上限 = min(100%, 10% ÷ 实际波动)，下限 30%；应持 = 权重 × 上限 × 持仓系数
     sub="仓位上限 "+pct(pos,0)+" = min(100%, 10%÷"+volTxt+") · 合计应持 "+pct(expo*pos,0);
-    if(acts.length>1) sub = acts.slice(1).join(" · ")+" ｜ "+sub;
+    if(acts.length>1) sub = acts.slice(1).map(function(x){return x.t}).join(" · ")+" ｜ "+sub;
     var head2='<div class="hero '+cls+'">'+
       '<div class="label">今天</div>'+
       '<div class="big">'+txt+'</div>'+
