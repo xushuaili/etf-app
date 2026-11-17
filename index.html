@@ -60,6 +60,10 @@
   details p{margin:8px 0 0}
   details b{color:#f8fafc}
   .mini{display:inline-block;font-size:11px;color:var(--sub);margin-top:2px}
+  table.rules{width:100%;border-collapse:collapse;margin:8px 0 4px;font-size:12.5px}
+  table.rules th{color:var(--sub);font-weight:500;text-align:left;padding:6px 4px;border-bottom:1px solid rgba(255,255,255,.12)}
+  table.rules td{padding:7px 4px;border-bottom:1px solid rgba(255,255,255,.07);vertical-align:top}
+  table.rules td i{font-style:normal;color:var(--sub);font-size:11px}
 </style>
 </head>
 <body>
@@ -67,17 +71,18 @@
 <div id="app"><div class="hero a-na"><div class="label">正在获取…</div>
 <div class="big">稍等</div><div class="sub">正在拉最新行情</div></div></div>
 
-<details open>
-  <summary>规则说明 / 状态修正</summary>
-  <p><b>仓位上限</b>：<b>10% ÷ 近60个交易日组合年化波动</b>，超过 100% 按 100% 算，最低 30%。比如实测波动 12.5%，上限就是 80%。</p>
-  <p><b>应持（卡片右上角）</b>：这只现在该占总资金的百分比 = <b>权重 × 仓位上限 × 持仓系数</b>。持仓系数三档：<b>空仓 0%</b>、<b>只持底仓 50%</b>、<b>满仓（底仓+卫星）100%</b>；黄金闸门只有 0% 和 100% 两档。</p>
-  <p>例：纳指权重 20%、仓位上限 100%、目前没建仓 → 应持 <b>0%</b>。等溢价回到 3% 以内且偏离 ≤ +8% 时建仓，应持才变成 20%。</p>
-  <p><b>512890 红利低波（70%）</b>：底仓 50% 永不动，卫星 50% 做网格。偏离 MA200 高于 <b>+10%</b> 卖卫星，跌回 <b>0%</b> 买回。</p>
-  <p><b>513100 纳指100（20%）</b>：底仓 50% 永不动，卫星 50% 做网格。<b>双条件触发</b>：偏离 MA200 ≥ <b>+15%</b> 或 溢价 ≥ <b>10%</b>，满足任一就卖卫星仓；要买回必须同时满足 偏离 ≤ +8% <b>且</b> 溢价 ≤ 3%。溢价高于 3% 一律不买、不加仓。</p>
-  <p><b>518880 黄金（10%）</b>：只做闸门，不做网格。收盘价站上 MA200 才持有，跌破就清空。现在闸门关着就不买，不追。</p>
-  <p><b>溢价</b>：现价 ÷ 单位净值 − 1，净值取腾讯行情官方净值字段。正数=买贵了。警戒线：512890 与 518880 超过 <b>1%</b> 别追；513100 是 QDII 额度受限、长期高溢价，超过 <b>3%</b> 一律不买，超过 <b>10%</b> 反而要减卫星仓。</p>
-  <p><b>价格分位</b>：现价在近3年价格里的位置（不是估值分位）。100%=最贵，0%=最便宜。</p>
-  <p><b>跟踪差(20日)</b>：仅 512890 —— 近20个交易日 ETF 涨幅减去中证红利低波指数涨幅。正常是 0~+1% 的小正数；低于 <b>-3%</b> 说明 ETF 跟丢指数，需要人工核对。每天收盘后由 GitHub 自动更新。</p>
+<details>
+  <summary>触发规则 / 名词 / 状态修正</summary>
+  <table class="rules">
+    <tr><th>标的</th><th>减仓</th><th>加仓</th></tr>
+    <tr><td>512890<br><i>70%</i></td><td>偏离 ≥ +10%</td><td>偏离 ≤ 0%</td></tr>
+    <tr><td>513100<br><i>20%</i></td><td>偏离 ≥ +15%<br>或 溢价 ≥ 10%</td><td>偏离 ≤ +8%<br>且 溢价 ≤ 3%</td></tr>
+    <tr><td>518880<br><i>10%</i></td><td>跌破 MA200</td><td>站上 MA200</td></tr>
+  </table>
+  <p>减仓只卖卫星仓（该资产的一半），底仓 50% 不动。加仓必须同时满足两个条件。</p>
+  <p><b>溢价</b> = 现价 ÷ 净值 − 1。512890、518880 超 1% 别追；513100 超 3% 不买、超 10% 减卫星仓。</p>
+  <p><b>价格分位</b> = 现价在近3年价格里的位置，0% 最便宜，100% 最贵。</p>
+  <p><b>跟踪差20日</b> = 512890 涨幅 − 中证红利低波指数涨幅。正常 0~+1%，低于 -3% 需核对。</p>
   <p id="extra"></p>
 </details>
 
@@ -310,7 +315,7 @@
     return '<div class="card '+a.cls+'">'+
       '<div class="top"><span class="nm">'+e.name+'<em>'+e.short+'</em></span>'+
         '<span class="wt">应持 <b style="font-size:15px;color:#f8fafc">'+pct(e.w*volPos*posOf(e,h),0)+
-        '</b><br>权重 '+pct(e.w,0)+'</span></div>'+
+        '</b><br>'+pct(e.w,0)+'×'+pct(volPos,0)+'×'+pct(posOf(e,h),0)+'</span></div>'+
       '<div class="act">'+a.txt+'</div>'+
       '<div class="note">'+a.note+'</div>'+
       '<div class="px">'+
@@ -336,8 +341,8 @@
     var volTxt=isFinite(vol)?(vol*100).toFixed(1)+"%":"—";
     var cls="a-hold", txt="什么都不用做", sub;
     if(acts.length){ cls="a-sell"; txt=acts[0]; }
-    // 仓位上限 = 10% ÷ 实际波动（下限30%）；各资产"应持"= 权重 × 上限 × 网格系数
-    sub="仓位上限 "+pct(pos,0)+"（波动 "+volTxt+" / 目标 10%）· 合计应持 "+pct(expo*pos,0);
+    // 仓位上限 = min(100%, 10% ÷ 实际波动)，下限 30%；应持 = 权重 × 上限 × 持仓系数
+    sub="仓位上限 "+pct(pos,0)+" = min(100%, 10%÷"+volTxt+") · 合计应持 "+pct(expo*pos,0);
     if(acts.length>1) sub = acts.slice(1).join(" · ")+" ｜ "+sub;
     var head2='<div class="hero '+cls+'">'+
       '<div class="label">今天</div>'+
