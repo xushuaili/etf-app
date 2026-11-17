@@ -69,12 +69,13 @@
 
 <details open>
   <summary>规则说明 / 状态修正</summary>
-  <p><b>总仓位</b>：三只资产合起来占总资金多少。由「波动率目标」决定 —— 近60个交易日组合年化波动超过 10% 就按比例降仓，低于就满仓，下限 30%。</p>
+  <p><b>仓位上限</b>：由「波动率目标」决定 —— 近60个交易日组合年化波动超过 10% 就按比例降仓（10%÷实际波动），低于就满仓，下限 30%。降仓时三只资产按 70/20/10 <b>等比缩减</b>。</p>
+  <p><b>实际持仓</b>：仓位上限再乘各资产自己的网格/闸门系数。比如黄金闸门关着，那 10% 是现金，实际持仓就只有 90%。</p>
   <p><b>512890 红利低波（70%）</b>：底仓 50% 永不动，卫星 50% 做网格。偏离 MA200 高于 <b>+10%</b> 卖卫星，跌回 <b>0%</b> 买回。</p>
   <p><b>513100 纳指100（20%）</b>：规则同上 —— 底仓 50% 永不动，卫星 50% 做网格。但阈值放宽到 <b>+20% 减 / +8% 加回</b>。纳指是趋势资产，用 10% 的小阈值会被牛市反复削仓。</p>
   <p><b>518880 黄金（10%）</b>：只做闸门，不做网格。收盘价站上 MA200 才持有，跌破就清空。现在闸门关着就不买，不追。</p>
-  <p><b>溢价</b>：场内价比净值贵多少。正数=买贵了，超过 1% 别追（513100 是 QDII，溢价经常偏高）。</p>
-  <p><b>分位</b>：现价在近3年里的位置。100%=最贵，0%=最便宜。</p>
+  <p><b>溢价</b>：现价 ÷ 单位净值 − 1，净值取腾讯行情官方净值字段。正数=买贵了。警戒线：512890 与 518880 超过 <b>1%</b> 别追；513100 是 QDII，额度受限长期高溢价，超过 <b>3%</b> 就别买。</p>
+  <p><b>价格分位</b>：现价在近3年价格里的位置（不是估值分位）。100%=最贵，0%=最便宜。</p>
   <p><b>跟踪差(20日)</b>：仅 512890 —— 近20个交易日 ETF 涨幅减去中证红利低波指数涨幅。正常是 0~+1% 的小正数；低于 <b>-3%</b> 说明 ETF 跟丢指数，需要人工核对。每天收盘后由 GitHub 自动更新。</p>
   <p id="extra"></p>
 </details>
@@ -87,11 +88,11 @@
   // mode: grid=高抛低吸网格(底仓50%+卫星50%), gate=MA200闸门(站上持有/跌破清空)
   var ETFS = [
     {code:"sh512890", name:"红利低波", short:"512890", w:0.70, mode:"grid",
-     sell:0.10, buy:0.00, sat:"50%", initIn:true},
+     sell:0.10, buy:0.00, initIn:true, premMax:0.01},
     {code:"sh513100", name:"纳指100",  short:"513100", w:0.20, mode:"grid",
-     sell:0.20, buy:0.08, sat:"50%", initIn:true},
+     sell:0.20, buy:0.08, initIn:true, premMax:0.03},
     {code:"sh518880", name:"黄金",     short:"518880", w:0.10, mode:"gate",
-     sell:0.00, buy:0.00, sat:"100%", initIn:false}
+     sell:0.00, buy:0.00, initIn:false, premMax:0.01}
   ];
   var TARGET_VOL = 0.10, VOL_WIN = 60, MIN_POS = 0.30;
   var STORE="etf_state_v5", CACHE="etf_cache_v3";
@@ -153,11 +154,20 @@
     var st=loadState();
     if(st[e.code]!=="IN" && st[e.code]!=="OUT"){
       var init;
-      if(e.mode==="gate") init = dev>0 ? "IN" : "OUT";
+      // gate 模式初始一律视为空仓：只有按过"我已执行"才算真的持有，
+      // 否则黄金站上 MA200 时页面会误报"持有"，买入信号永远不会出现
+      if(e.mode==="gate") init = "OUT";
       else init = (dev>=e.sell)?"OUT":(dev<=e.buy)?"IN":(e.initIn?"IN":"OUT");
       st[e.code]=init; saveState(st);
     }
     return st[e.code];
+  }
+
+  // 资产当前仓位系数：网格=底仓0.5+卫星0.5(持有则1，卖出则0.5)；闸门=0或1
+  function posOf(e, h){
+    var st=stateOf(e,h.dev);
+    if(e.mode==="gate") return st==="IN"?1.0:0.0;
+    return st==="IN"?1.0:0.5;
   }
 
   function head(e){
@@ -166,8 +176,12 @@
     if(!isFinite(p)) p=c.length?c[c.length-1]:NaN;
     var chg=(isFinite(p)&&isFinite(pv)&&pv)?p/pv-1:NaN;
     var ma=ma200(c);
-    var prem=NaN;
-    if(q){ var k=q.indexOf("CNY"); if(k>5){ var v=parseFloat(q[k-5]); if(isFinite(v)&&Math.abs(v)<20) prem=v; } }
+    // 溢价率 = 现价 / 单位净值 - 1。腾讯行情 q[81] 是官方单位净值，
+    // 已与天天基金 DWJZ 逐只核对一致（512890≈1.2664、513100≈1.8186、518880≈7.9098）
+    var nav=NaN;
+    if(q){ var v=parseFloat(q[81]); if(isFinite(v)&&v>0) nav=v; }
+    var prem=(isFinite(nav)&&isFinite(p))?p/nav-1:NaN;
+    if(isFinite(prem)&&Math.abs(prem)>1) prem=NaN;
     var pctile=NaN;
     if(c.length&&isFinite(p)){ var w=c.slice(-750); pctile=w.filter(function(x){return x<=p}).length/w.length; }
     return {p:p,chg:chg,ma:ma,dev:(isFinite(ma)&&isFinite(p))?p/ma-1:NaN,
@@ -265,15 +279,17 @@
     var chgCls=h.chg>=0?"up":"down";
     var chgTxt=isFinite(h.chg)?((h.chg>=0?"+":"")+pct(h.chg,2)):"";
     var line = e.mode==="gate" ? ("MA200 "+price(h.ma)) : ("减仓线 "+price(h.ma*(1+e.sell))+" · MA200 "+price(h.ma));
-    var premTxt = isFinite(h.prem) ? ((h.prem>=0?"+":"")+h.prem.toFixed(2)+"%") : "—";
-    var premWarn = isFinite(h.prem) && h.prem>=1;
+    var premTxt = isFinite(h.prem) ? ((h.prem>=0?"+":"")+(h.prem*100).toFixed(2)+"%") : "—";
+    var premWarn = isFinite(h.prem) && e.premMax && h.prem>=e.premMax;
     var pl = !isFinite(h.pctile) ? "—" :
       (h.pctile>=0.8?"很贵":h.pctile>=0.6?"偏贵":h.pctile>=0.4?"中等":h.pctile>=0.2?"偏便宜":"很便宜");
+    var premTip = premWarn ? '<div class="mini" style="color:#f87171;margin-top:6px">溢价超过 '+
+      (e.premMax*100).toFixed(0)+'%，现在买入等于多付钱，等溢价回落再动手</div>' : '';
     var chips='<div class="chips" style="margin-top:10px">'+
       '<span'+(premWarn?' style="background:#c62828"':'')+'>溢价 '+premTxt+(premWarn?' ⚠️':'')+'</span>'+
-      '<span>3年分位 '+(isFinite(h.pctile)?Math.round(h.pctile*100)+"%":"—")+'（'+pl+'）</span>'+
+      '<span>价格分位 '+(isFinite(h.pctile)?Math.round(h.pctile*100)+"%":"—")+'（'+pl+'）</span>'+
       (e.short==="512890"?'<span id="track">跟踪差 20日 —</span>':'')+
-      '</div>';
+      '</div>'+premTip;
     return '<div class="card '+a.cls+'">'+
       '<div class="top"><span class="nm">'+e.name+'<em>'+e.short+'</em></span>'+
         '<span class="wt">权重 '+pct(e.w,0)+'</span></div>'+
@@ -289,19 +305,22 @@
   }
 
   function heroHTML(vol){
-    var acts=[], cards="";
+    var acts=[], cards="", expo=0;
     ETFS.forEach(function(e){
       var h=head(e);
       if(!isFinite(h.dev)){ cards+=cardHTML(e); return; }
       var a=actionOf(e,h);
       if(a.need) acts.push(e.short+" "+a.txt);
+      expo += e.w * posOf(e,h);          // 各资产实际仓位（未乘波动率系数）
       cards+=cardHTML(e);
     });
     var pos=targetPos(vol);
     var volTxt=isFinite(vol)?(vol*100).toFixed(1)+"%":"—";
     var cls="a-hold", txt="什么都不用做", sub;
     if(acts.length){ cls="a-sell"; txt=acts[0]; }
-    sub="总仓位 "+pct(pos,0)+" · 实测波动 "+volTxt+(isFinite(vol)?"（目标 10%）":"");
+    // 说明：上限来自波动率目标；实际持仓还要乘各资产的网格/闸门系数
+    sub="仓位上限 "+pct(pos,0)+" · 实际持仓 "+pct(expo*pos,0)+
+        " · 波动 "+volTxt+"（目标 10%）";
     if(acts.length>1) sub = acts.slice(1).join(" · ")+" ｜ "+sub;
     var head2='<div class="hero '+cls+'">'+
       '<div class="label">今天</div>'+
@@ -343,7 +362,8 @@
 
   function applyTrack(){
     var box=document.getElementById("track");
-    if(!box || !STATUS || !isFinite(STATUS.track20)) return;
+    // 注意 isFinite(null) 为 true，JSON 里的 null 必须显式排除
+    if(!box || !STATUS || typeof STATUS.track20 !=="number" || !isFinite(STATUS.track20)) return;
     var tr=STATUS.track20, warn=tr<=-0.03;
     box.textContent="跟踪差20日 "+((tr>=0?"+":"")+(tr*100).toFixed(2))+"%"+(warn?" ⚠️":"");
     if(warn) box.style.background="#c62828"; else box.style.background="";
