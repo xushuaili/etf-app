@@ -15,24 +15,36 @@
        max-width:520px;margin:0 auto;min-height:100vh}
   .foot{text-align:center;font-size:12px;color:var(--sub);padding:16px 0 6px;line-height:1.6}
   .confirm{width:100%;border:0;border-radius:12px;padding:14px;font-size:15px;font-weight:700;
-           background:#fff;color:#0f172a;margin-top:14px}
+           background:#fff;color:#0f172a;margin-top:12px}
   .confirm:active{opacity:.85}
   .chips{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
   .refresh{display:block;width:100%;margin:8px 0 10px;padding:13px;border:0;border-radius:14px;
            background:#fff;color:#1a237e;font-size:15px;font-weight:600;box-shadow:0 2px 8px rgba(0,0,0,.15)}
   .chips span{background:rgba(255,255,255,.18);border-radius:10px;padding:6px 10px;font-size:12px;
               font-weight:500}
-  .hero{border-radius:20px;padding:22px 18px;margin-bottom:12px}
+  .hero{border-radius:20px;padding:20px 18px;margin-bottom:12px}
   .a-buy{background:var(--buy)}.a-sell{background:var(--sell)}
   .a-hold{background:var(--hold)}.a-wait{background:var(--wait)}.a-na{background:var(--na)}
   .label{font-size:13px;opacity:.9;font-weight:500}
-  .big{font-size:32px;font-weight:800;line-height:1.15;margin:8px 0 6px;letter-spacing:-.5px}
+  .big{font-size:30px;font-weight:800;line-height:1.15;margin:8px 0 6px;letter-spacing:-.5px}
   .sub{font-size:14px;opacity:.95;line-height:1.5}
-  .row{display:flex;justify-content:space-between;align-items:baseline;
-       background:var(--card);border-radius:14px;padding:14px 16px;margin-bottom:10px}
-  .row .k{font-size:12px;color:var(--sub)}
-  .row .v{font-size:19px;font-weight:700}
-  .row .v small{font-size:12px;font-weight:500;color:var(--sub);margin-left:6px}
+  .card{background:var(--card);border-radius:16px;padding:14px 16px;margin-bottom:10px;
+        border-left:4px solid var(--hold)}
+  .card.s-sell{border-left-color:var(--sell)}
+  .card.s-buy{border-left-color:var(--buy)}
+  .card.s-hold{border-left-color:var(--hold)}
+  .card.s-wait{border-left-color:var(--wait)}
+  .card .top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+  .card .nm{font-size:14px;font-weight:700}
+  .card .nm em{font-style:normal;color:var(--sub);font-weight:500;font-size:12px;margin-left:6px}
+  .card .wt{font-size:12px;color:var(--sub);white-space:nowrap}
+  .card .act{font-size:20px;font-weight:800;margin:8px 0 2px}
+  .card .note{font-size:12px;color:#cbd5e1;line-height:1.5}
+  .card .px{display:flex;justify-content:space-between;align-items:baseline;margin-top:10px;
+            padding-top:10px;border-top:1px solid rgba(255,255,255,.08)}
+  .card .px b{font-size:18px;font-weight:700}
+  .card .px b small{font-size:12px;font-weight:500;margin-left:6px}
+  .card .px span{font-size:12px;color:var(--sub)}
   .up{color:#f87171}.down{color:#4ade80}
   .thin{background:var(--card);border-radius:14px;padding:14px 16px;margin-bottom:10px;
         font-size:14px;line-height:1.6}
@@ -42,14 +54,12 @@
          background:#f8fafc;color:#0f172a}
   button:active{opacity:.85}
   .link{color:#93c5fd;font-size:12px;text-decoration:underline;background:none;border:0;
-        padding:0;width:auto;font-weight:500}
+        padding:0;width:auto;font-weight:500;text-align:left}
   details{margin-top:4px;font-size:13px;color:#cbd5e1;line-height:1.8}
   summary{color:var(--sub);font-size:13px;padding:8px 0;cursor:pointer}
   details p{margin:8px 0 0}
   details b{color:#f8fafc}
   .mini{display:inline-block;font-size:11px;color:var(--sub);margin-top:2px}
-  .link{color:#93c5fd;font-size:12px;text-decoration:underline;background:none;border:0;
-        padding:0;width:auto;font-weight:500}
 </style>
 </head>
 <body>
@@ -58,12 +68,14 @@
 <div class="big">稍等</div><div class="sub">正在拉最新行情</div></div></div>
 
 <details open>
-  <summary>指标说明 / 状态修正</summary>
-  <p><b>MA200</b>：过去200天平均价，代表长期中枢。</p>
-  <p><b>偏离</b>：现价比中枢贵或便宜多少。高于 +10% 卖卫星仓，跌回 0% 买回来。</p>
-  <p><b>分位</b>：现价在近3年里的位置。100%=最贵（股息率最低），0%=最便宜。</p>
-  <p><b>溢价</b>：场内价比净值贵多少。正数=买贵了，超过 1% 别追。</p>
-  <p><b>跟踪差(20日)</b>：近20个交易日，ETF 涨幅减去中证红利低波指数涨幅。ETF 含分红、指数不含，正常是 0~+1% 的小正数；低于 <b>-3%</b> 说明 ETF 跟丢指数，需要人工核对。每天收盘后由 GitHub 自动更新。</p>
+  <summary>规则说明 / 状态修正</summary>
+  <p><b>总仓位</b>：三只资产合起来占总资金多少。由「波动率目标」决定 —— 近60个交易日组合年化波动超过 10% 就按比例降仓，低于就满仓，下限 30%。</p>
+  <p><b>512890 红利低波（70%）</b>：底仓 50% 永不动，卫星 50% 做网格。偏离 MA200 高于 <b>+10%</b> 卖卫星，跌回 <b>0%</b> 买回。</p>
+  <p><b>513100 纳指100（20%）</b>：同样的网格，但阈值放宽到 <b>+20% 减 / +8% 加回</b>。纳指是趋势资产，小阈值会被牛市反复削仓。</p>
+  <p><b>518880 黄金（10%）</b>：只做闸门，不做网格。收盘价站上 MA200 才持有，跌破就清空。现在闸门关着就不买，不追。</p>
+  <p><b>溢价</b>：场内价比净值贵多少。正数=买贵了，超过 1% 别追（513100 是 QDII，溢价经常偏高）。</p>
+  <p><b>分位</b>：现价在近3年里的位置。100%=最贵，0%=最便宜。</p>
+  <p><b>跟踪差(20日)</b>：仅 512890 —— 近20个交易日 ETF 涨幅减去中证红利低波指数涨幅。正常是 0~+1% 的小正数；低于 <b>-3%</b> 说明 ETF 跟丢指数，需要人工核对。每天收盘后由 GitHub 自动更新。</p>
   <p id="extra"></p>
 </details>
 
@@ -72,10 +84,17 @@
 
 <script>
 (function(){
+  // mode: grid=高抛低吸网格(底仓50%+卫星50%), gate=MA200闸门(站上持有/跌破清空)
   var ETFS = [
-    {code:"sh512890", name:"红利低波", short:"512890", sell:0.10, buy:0.00, sat:"50%", initIn:true}
+    {code:"sh512890", name:"红利低波", short:"512890", w:0.70, mode:"grid",
+     sell:0.10, buy:0.00, sat:"50%", initIn:true},
+    {code:"sh513100", name:"纳指100",  short:"513100", w:0.20, mode:"grid",
+     sell:0.20, buy:0.08, sat:"50%", initIn:true},
+    {code:"sh518880", name:"黄金",     short:"518880", w:0.10, mode:"gate",
+     sell:0.00, buy:0.00, sat:"100%", initIn:false}
   ];
-  var STORE="etf_state_v4", CACHE="etf_cache_v2";
+  var TARGET_VOL = 0.10, VOL_WIN = 60, MIN_POS = 0.30;
+  var STORE="etf_state_v5", CACHE="etf_cache_v3";
 
   function loadState(){ try{return JSON.parse(localStorage.getItem(STORE))||{}}catch(e){return {}} }
   function saveState(s){ try{localStorage.setItem(STORE,JSON.stringify(s))}catch(e){} }
@@ -104,12 +123,17 @@
     document.body.appendChild(s);
   }
 
+  // 返回 [{d:"2026-11-17", c:1.263}, ...]，按日期升序
   function fetchKline(code, cb){
-    jsonp("https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param="+code+",day,,,320,qfq",
+    jsonp("https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param="+code+",day,,,800,qfq",
       "k_"+code+"_"+Date.now(), function(o){
         try{
           var d=o.data[code], a=d.qfqday||d.day||[];
-          cb(a.map(function(x){return parseFloat(x[2])}).filter(function(v){return isFinite(v)&&v>0}));
+          var out=a.map(function(x){
+            var c=parseFloat(x[2]);
+            return (isFinite(c)&&c>0)?{d:x[0],c:c}:null;
+          }).filter(function(x){ return x!==null });
+          cb(out.length?out:null);
         }catch(e){ cb(null); }
       });
   }
@@ -117,118 +141,212 @@
   function pct(v,d){ return isFinite(v)?(v*100).toFixed(d===undefined?1:d)+"%":"—"; }
   function price(v){ return isFinite(v)?v.toFixed(3):"—"; }
 
-  function stateOf(code, dev, sell, buy, initIn){
+  function closesOf(series){ return series.map(function(x){ return x.c }) }
+
+  function ma200(closes){
+    if(!closes || closes.length<200) return NaN;
+    var s=0; for(var i=closes.length-200;i<closes.length;i++) s+=closes[i];
+    return s/200;
+  }
+
+  function stateOf(e, dev){
     var st=loadState();
-    if(st[code]!=="IN" && st[code]!=="OUT"){
-      st[code] = (dev>=sell)?"OUT":(dev<=buy)?"IN":(initIn?"IN":"OUT");
-      saveState(st);
+    if(st[e.code]!=="IN" && st[e.code]!=="OUT"){
+      var init;
+      if(e.mode==="gate") init = dev>0 ? "IN" : "OUT";
+      else init = (dev>=e.sell)?"OUT":(dev<=e.buy)?"IN":(e.initIn?"IN":"OUT");
+      st[e.code]=init; saveState(st);
     }
-    return st[code];
+    return st[e.code];
   }
 
   function head(e){
-    var q=e.quote, c=e.closes, p=q?parseFloat(q[3]):NaN, pv=q?parseFloat(q[4]):NaN;
-    if(!isFinite(p)) p=c&&c.length?c[c.length-1]:NaN;
+    var q=e.quote, c=closesOf(e.series||[]);
+    var p=q?parseFloat(q[3]):NaN, pv=q?parseFloat(q[4]):NaN;
+    if(!isFinite(p)) p=c.length?c[c.length-1]:NaN;
     var chg=(isFinite(p)&&isFinite(pv)&&pv)?p/pv-1:NaN;
-    var ma=NaN;
-    if(c&&c.length>=200){ var s=0; for(var i=c.length-200;i<c.length;i++)s+=c[i]; ma=s/200; }
+    var ma=ma200(c);
     var prem=NaN;
     if(q){ var k=q.indexOf("CNY"); if(k>5){ var v=parseFloat(q[k-5]); if(isFinite(v)&&Math.abs(v)<20) prem=v; } }
     var pctile=NaN;
-    if(c&&c.length&&isFinite(p)){ var w=c.slice(-750); pctile=w.filter(function(x){return x<=p}).length/w.length; }
+    if(c.length&&isFinite(p)){ var w=c.slice(-750); pctile=w.filter(function(x){return x<=p}).length/w.length; }
     return {p:p,chg:chg,ma:ma,dev:(isFinite(ma)&&isFinite(p))?p/ma-1:NaN,
             prem:prem,pctile:pctile,c:c,q:q};
   }
 
-  function heroHTML(e){
-    var h=head(e);
-    if(!isFinite(h.dev)) return '<div class="hero a-na"><div class="label">'+e.name+' '+e.short+
-      '</div><div class="big">数据不足</div><div class="sub">历史K线不够200天</div></div>';
+  // ---- 组合波动率目标：把三只的规则跑一遍，算近60日组合年化波动 ----
+  function alignedCols(){
+    var maps=ETFS.map(function(e){
+      var m={}; (e.series||[]).forEach(function(x){ m[x.d]=x.c }); return m;
+    });
+    if(!ETFS[0].series) return null;
+    var dates=ETFS[0].series.map(function(x){return x.d}).filter(function(d){
+      return maps.every(function(m){ return m[d]!==undefined });
+    });
+    if(dates.length<260) return null;
+    return dates.map(function(d){ return maps.map(function(m){ return m[d] }) });
+  }
 
-    var st=stateOf(e.code,h.dev,e.sell,e.buy,e.initIn), txt,cls,sub,need=false,dir="";
-    if(st==="IN" && h.dev>=e.sell){
-      cls="a-sell"; txt="卖出卫星仓"; need=true; dir="OUT";
-      sub="已涨到卖出线，卖掉卫星仓（总仓位的 "+e.sat+"），底仓不动";
-    }else if(st==="OUT" && h.dev<=e.buy){
-      cls="a-buy"; txt="买回卫星仓"; need=true; dir="IN";
-      sub="已跌到买入线，把卫星仓买回来（总仓位的 "+e.sat+"）";
-    }else if(st==="IN"){
-      cls="a-hold"; txt="什么都不用做";
-      sub="再涨 "+pct(e.sell-h.dev)+" 到 "+price(h.ma*(1+e.sell))+" 才卖";
-    }else{
-      cls="a-wait"; txt="等待，不要买";
-      sub="跌到 "+price(h.ma*(1+e.buy))+"（还需 "+pct(h.dev-e.buy)+"）才买";
+  // 单资产策略日收益序列（用 t-1 的收盘和MA做决策，无未来函数）
+  function stratReturns(closes, mode, sell, buy){
+    var n=closes.length, out=new Array(n).fill(0);
+    var sat=1.0, pos=1.0;
+    for(var i=1;i<n;i++){
+      var j=i-1;
+      if(j>=199){
+        var s=0; for(var k=j-199;k<=j;k++) s+=closes[k];
+        var ma=s/200, dev=closes[j]/ma-1;
+        if(mode==="grid"){
+          if(dev>=sell && sat>0.5) sat=0.5;
+          else if(dev<=buy && sat<1) sat=1.0;
+          pos=sat;
+        }else{
+          pos = dev>0 ? 1.0 : 0.0;
+        }
+      }
+      out[i]=pos*(closes[i]/closes[i-1]-1);
     }
-    var chgCls = h.chg>=0?"up":"down";
-    var chgTxt = isFinite(h.chg)?((h.chg>=0?"+":"")+pct(h.chg,2)):"";
+    return out;
+  }
+
+  function portVol(){
+    var rows=alignedCols();
+    if(!rows) return NaN;
+    var n=rows.length;
+    var per=ETFS.map(function(e,i){
+      return stratReturns(rows.map(function(r){return r[i]}), e.mode, e.sell, e.buy);
+    });
+    var pr=new Array(n).fill(0);
+    for(var i=1;i<n;i++){
+      var r=0;
+      for(var a=0;a<ETFS.length;a++) r+=ETFS[a].w*per[a][i];
+      pr[i]=r;
+    }
+    var seg=pr.slice(-VOL_WIN);
+    var mu=0; for(var i=0;i<seg.length;i++) mu+=seg[i]; mu/=seg.length;
+    var sd=0; for(var i=0;i<seg.length;i++) sd+=(seg[i]-mu)*(seg[i]-mu);
+    sd=Math.sqrt(sd/seg.length)*Math.sqrt(244);
+    return sd;
+  }
+
+  function targetPos(vol){
+    if(!isFinite(vol)||vol<=0) return 1.0;
+    return Math.max(MIN_POS, Math.min(1.0, TARGET_VOL/vol));
+  }
+
+  // ---- 单只资产的动作 ----
+  function actionOf(e,h){
+    var st=stateOf(e,h.dev);
+    if(e.mode==="gate"){
+      if(st==="IN" && h.dev<=0)
+        return {cls:"s-sell", txt:"清空黄金", note:"跌破 MA200，闸门关闭，全部卖出（占"+pct(e.w,0)+"总仓位）", need:true, dir:"OUT"};
+      if(st==="OUT" && h.dev>0)
+        return {cls:"s-buy", txt:"买入黄金", note:"站回 MA200，闸门打开，可买入（占"+pct(e.w,0)+"总仓位）", need:true, dir:"IN"};
+      if(st==="IN")
+        return {cls:"s-hold", txt:"持有", note:"站在 MA200 上 "+pct(h.dev)+"，闸门开着，不用动"};
+      return {cls:"s-wait", txt:"空仓等待", note:"低于 MA200 "+pct(-h.dev)+"，闸门关着，站上 "+price(h.ma)+" 才买，不抄底"};
+    }
+    var lowLine = price(h.ma*(1+e.buy));
+    if(st==="IN" && h.dev>=e.sell)
+      return {cls:"s-sell", txt:"卖出卫星仓", note:"到 +"+(e.sell*100).toFixed(0)+"% 卖出线，卖掉卫星仓（总仓位的 "+e.sat+"），底仓不动", need:true, dir:"OUT"};
+    if(st==="OUT" && h.dev<=e.buy)
+      return {cls:"s-buy", txt:"买回卫星仓", note:"到加回线，把卫星仓买回来（总仓位的 "+e.sat+"）", need:true, dir:"IN"};
+    if(st==="IN")
+      return {cls:"s-hold", txt:"持有", note:"再涨 "+pct(e.sell-h.dev)+" 到 "+price(h.ma*(1+e.sell))+" 才减卫星仓"};
+    return {cls:"s-wait", txt:"等待，不要买", note:"跌到 "+lowLine+"（还需 "+pct(h.dev-e.buy)+"）才买回卫星仓"};
+  }
+
+  function cardHTML(e){
+    var h=head(e);
+    if(!isFinite(h.dev)) return '<div class="card"><div class="top"><span class="nm">'+e.name+
+      '<em>'+e.short+'</em></span><span class="wt">'+pct(e.w,0)+'</span></div>'+
+      '<div class="act">数据不足</div><div class="note">历史K线不够200天</div></div>';
+    var a=actionOf(e,h);
+    var chgCls=h.chg>=0?"up":"down";
+    var chgTxt=isFinite(h.chg)?((h.chg>=0?"+":"")+pct(h.chg,2)):"";
+    var line = e.mode==="gate" ? ("MA200 "+price(h.ma)) : ("减仓线 "+price(h.ma*(1+e.sell))+" · MA200 "+price(h.ma));
+    var premTxt = isFinite(h.prem) ? ((h.prem>=0?"+":"")+h.prem.toFixed(2)+"%") : "—";
+    var premWarn = isFinite(h.prem) && h.prem>=1;
     var pl = !isFinite(h.pctile) ? "—" :
       (h.pctile>=0.8?"很贵":h.pctile>=0.6?"偏贵":h.pctile>=0.4?"中等":h.pctile>=0.2?"偏便宜":"很便宜");
-    var premTxt = isFinite(h.prem) ? ((h.prem>=0?"+":"")+h.prem.toFixed(2)+"%") : "—";
-    var tr = STATUS && isFinite(STATUS.track20) ? STATUS.track20 : NaN;
-    var trTxt = isFinite(tr) ? ((tr>=0?"+":"")+(tr*100).toFixed(2)+"%") : "—";
-    var trWarn = isFinite(tr) && tr <= -0.03;
-    return '<div class="hero '+cls+'">'+
-      '<div class="label">'+e.name+' '+e.short+'</div>'+
-      '<div class="big">'+txt+'</div>'+
-      '<div class="sub">'+sub+'</div>'+
-      '<div class="row" style="background:rgba(0,0,0,.18);margin:14px 0 0">'+
-        '<span class="v">'+price(h.p)+'<small class="'+chgCls+'">'+chgTxt+'</small></span>'+
-        '<span class="k">MA200 '+price(h.ma)+' · 偏离 '+(h.dev>=0?"+":"")+pct(h.dev)+'</span>'+
+    var chips='<div class="chips" style="margin-top:10px">'+
+      '<span'+(premWarn?' style="background:#c62828"':'')+'>溢价 '+premTxt+(premWarn?' ⚠️':'')+'</span>'+
+      '<span>3年分位 '+(isFinite(h.pctile)?Math.round(h.pctile*100)+"%":"—")+'（'+pl+'）</span>'+
+      (e.short==="512890"?'<span id="track">跟踪差 20日 —</span>':'')+
+      '</div>';
+    return '<div class="card '+a.cls+'">'+
+      '<div class="top"><span class="nm">'+e.name+'<em>'+e.short+'</em></span>'+
+        '<span class="wt">权重 '+pct(e.w,0)+'</span></div>'+
+      '<div class="act">'+a.txt+'</div>'+
+      '<div class="note">'+a.note+'</div>'+
+      '<div class="px">'+
+        '<b>'+price(h.p)+'<small class="'+chgCls+'">'+chgTxt+'</small></b>'+
+        '<span>'+line+'</span>'+
       '</div>'+
-      '<div class="chips">'+
-        '<span>溢价 '+premTxt+'</span>'+
-        '<span>3年分位 '+(isFinite(h.pctile)?Math.round(h.pctile*100)+"%":"—")+'（'+pl+'）</span>'+
-        '<span'+(trWarn?' style="background:#c62828"':'')+'>跟踪差20日 '+trTxt+(trWarn?' ⚠️':'')+'</span>'+
-      '</div>'+
-      (need?'<button class="confirm" data-confirm="'+e.code+'" data-dir="'+dir+'">我已执行，更新状态</button>':'')+
+      chips+
+      (a.need?'<button class="confirm" data-confirm="'+e.code+'" data-dir="'+a.dir+'">我已执行，更新状态</button>':'')+
       '</div>';
   }
 
-  function thinHTML(e){
-    var h=head(e);
-    if(!isFinite(h.dev)) return "";
-    var st=stateOf(e.code,h.dev,e.sell,e.buy,e.initIn);
-    var line,color;
-    if(st==="IN" && h.dev>=e.sell){ line="卖出卫星仓"; color="var(--sell)"; }
-    else if(st==="OUT" && h.dev<=e.buy){ line="买回卫星仓"; color="var(--buy)"; }
-    else if(st==="IN"){ line="持有，"+price(h.ma*(1+e.sell))+" 以上再卖"; color="var(--hold)"; }
-    else { line="等待，跌到 "+price(h.ma*(1+e.buy))+" 再买"; color="var(--sub)"; }
-    return '<div class="thin"><div class="t">'+e.name+' '+e.short+'（观察，未持仓）</div>'+
-      '<b style="color:'+color+'">'+line+'</b>'+
-      '<div class="mini">现价 '+price(h.p)+' · MA200 '+price(h.ma)+' · 偏离 '+(h.dev>=0?"+":"")+pct(h.dev)+'</div></div>';
+  function heroHTML(vol){
+    var acts=[], cards="";
+    ETFS.forEach(function(e){
+      var h=head(e);
+      if(!isFinite(h.dev)){ cards+=cardHTML(e); return; }
+      var a=actionOf(e,h);
+      if(a.need) acts.push(e.short+" "+a.txt);
+      cards+=cardHTML(e);
+    });
+    var pos=targetPos(vol);
+    var volTxt=isFinite(vol)?(vol*100).toFixed(1)+"%":"—";
+    var cls="a-hold", txt="什么都不用做", sub;
+    if(acts.length){ cls="a-sell"; txt=acts[0]; }
+    sub="总仓位 "+pct(pos,0)+" · 实测波动 "+volTxt+(isFinite(vol)?"（目标 10%）":"");
+    if(acts.length>1) sub = acts.slice(1).join(" · ")+" ｜ "+sub;
+    var head2='<div class="hero '+cls+'">'+
+      '<div class="label">今天</div>'+
+      '<div class="big">'+txt+'</div>'+
+      '<div class="sub">'+sub+'</div>'+
+      '</div>';
+    return head2+cards;
   }
 
-  function extras(data){
+  function extras(){
     var st=loadState();
     var btns=ETFS.map(function(e){
       var cur=st[e.code]||"—";
       return '<button class="link" data-code="'+e.code+'">'+e.short+'：当前'+
-        (cur==="IN"?"持有卫星仓":"空仓")+' → 点此改为'+(cur==="IN"?"空仓":"持有")+'</button>';
+        (cur==="IN"?"持有":"空仓")+' → 点此改为'+(cur==="IN"?"空仓":"持有")+'</button>';
     }).join("<br>");
     document.getElementById("extra").innerHTML = btns;
     Array.prototype.forEach.call(document.querySelectorAll("[data-code]"), function(b){
       b.onclick=function(){
         var c=b.getAttribute("data-code"); var s=loadState();
-        s[c]=(s[c]==="IN")?"OUT":"IN"; saveState(s); refresh();
+        s[c]=(s[c]==="IN")?"OUT":"IN"; saveState(s); render();
       };
     });
   }
 
-  var lastList=[];
-  function render(list){
-    lastList=list;
-    var html="";
-    if(list[0]) html+=heroHTML(list[0]);
-    for(var i=1;i<list.length;i++) html+=thinHTML(list[i]);
-    document.getElementById("app").innerHTML=html;
-    extras(list);
+  var VOL=NaN;
+  function render(){
+    document.getElementById("app").innerHTML=heroHTML(VOL);
+    extras();
+    applyTrack();
     Array.prototype.forEach.call(document.querySelectorAll("[data-confirm]"), function(b){
       b.onclick=function(){
         var s=loadState();
         s[b.getAttribute("data-confirm")]=b.getAttribute("data-dir");
-        saveState(s); refresh();
+        saveState(s); render();
       };
     });
+  }
+
+  function applyTrack(){
+    var box=document.getElementById("track");
+    if(!box || !STATUS || !isFinite(STATUS.track20)) return;
+    var tr=STATUS.track20, warn=tr<=-0.03;
+    box.textContent="跟踪差20日 "+((tr>=0?"+":"")+(tr*100).toFixed(2))+"%"+(warn?" ⚠️":"");
+    if(warn) box.style.background="#c62828"; else box.style.background="";
   }
 
   var lastFetch=0, busy=false;
@@ -236,29 +354,24 @@
   function refresh(){
     if(busy) return;
     busy=true; lastFetch=Date.now();
-    var cache=loadCache(), need=ETFS.length, out=[];
+    var cache=loadCache(), need=ETFS.length;
     ETFS.forEach(function(e){
-      fetchKline(e.code, function(c){
-        if(!c||!c.length) c=(cache[e.code]&&cache[e.code].c)||null;
-        else { cache[e.code]={c:c.slice(-800)}; }
-        out.push({code:e.code,name:e.name,short:e.short,sell:e.sell,buy:e.buy,sat:e.sat,
-                  initIn:e.initIn,closes:c});
-        if(--need===0) afterKline(cache,out);
+      fetchKline(e.code, function(series){
+        if(!series||!series.length) series=(cache[e.code]&&cache[e.code].s)||null;
+        else cache[e.code]={s:series};
+        e.series=series;
+        if(--need===0) afterKline(cache);
       });
     });
   }
 
-  function afterKline(cache,out){
+  function afterKline(cache){
     saveCache(cache);
     fetchQuote(ETFS.map(function(e){return e.code}), function(qs){
-      var list=out.map(function(o){
-        var q=qs?qs[o.code]:null;
-        if(q && (!isFinite(parseFloat(q[3])))) q=null;
-        return {code:o.code,name:o.name,short:o.short,sell:o.sell,buy:o.buy,sat:o.sat,
-                initIn:o.initIn,closes:o.closes,quote:q};
-      });
-      list.sort(function(a,b){ return a.short==="512890"?-1:1; });
-      render(list);
+      ETFS.forEach(function(e){ e.quote = qs ? qs[e.code] : null;
+        if(e.quote && !isFinite(parseFloat(e.quote[3]))) e.quote=null; });
+      try{ VOL=portVol(); }catch(err){ VOL=NaN; }
+      render();
       busy=false;
       var d=new Date();
       var hh=("0"+d.getHours()).slice(-2), mm=("0"+d.getMinutes()).slice(-2);
@@ -279,7 +392,7 @@
     if(!document.hidden){ refresh(); loadStatus(); }
   });
 
-  // 每日跟踪差(由 GitHub Actions 收盘后写入 data/status.json)
+  // 每日跟踪差(由 GitHub Actions 收盘后写入 data/status.json)，仅 512890 使用
   var STATUS=null;
   function loadStatus(){
     if(location.protocol==="file:") return;           // 本地双击打开时读不到, 忽略
@@ -287,7 +400,7 @@
     x.open("GET","data/status.json?t="+Date.now(),true);
     x.onreadystatechange=function(){
       if(x.readyState===4 && x.status===200){
-        try{ STATUS=JSON.parse(x.responseText); if(lastList.length) render(lastList); }catch(e){}
+        try{ STATUS=JSON.parse(x.responseText); applyTrack(); }catch(e){}
       }
     };
     x.send();
