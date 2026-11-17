@@ -101,7 +101,7 @@
      sell:0.00, buy:0.00, state0:"NONE", premMax:0.01}
   ];
   var STATE_NAME={NONE:"空仓", BASE:"只持底仓", FULL:"满仓"};
-  var TARGET_VOL = 0.10, VOL_WIN = 60, MIN_POS = 0.30;
+  var TARGET_VOL = 0.12, VOL_WIN = 60, MIN_POS = 0.30;
   var STORE="etf_state_v8", CACHE="etf_cache_v3";
 
   function loadState(){ try{return JSON.parse(localStorage.getItem(STORE))||{}}catch(e){return {}} }
@@ -347,8 +347,8 @@
     var volTxt=isFinite(vol)?(vol*100).toFixed(1)+"%":"—";
     var cls="a-hold", txt="什么都不用做", sub;
     if(acts.length){ cls=acts[0].c; txt=acts[0].t; }
-    // 仓位上限 = min(100%, 10% ÷ 实际波动)，下限 30%；应持 = 权重 × 上限 × 持仓系数
-    sub="仓位上限 "+pct(pos,0)+" = min(100%, 10%÷"+volTxt+") · 合计应持 "+pct(expo*pos,0);
+    // 仓位上限 = min(100%, 目标波动 ÷ 实际波动)，下限 30%；应持 = 权重 × 上限 × 持仓系数
+    sub="仓位上限 "+pct(pos,0)+" = min(100%, "+pct(TARGET_VOL,0)+"÷"+volTxt+") · 合计应持 "+pct(expo*pos,0);
     if(acts.length>1) sub = acts.slice(1).map(function(x){return x.t}).join(" · ")+" ｜ "+sub;
     var head2='<div class="hero '+cls+'">'+
       '<div class="label">今天</div>'+
