@@ -70,7 +70,8 @@
 <details open>
   <summary>规则说明 / 状态修正</summary>
   <p><b>仓位上限</b>：<b>10% ÷ 近60个交易日组合年化波动</b>，超过 100% 按 100% 算，最低 30%。比如实测波动 12.5%，上限就是 80%。</p>
-  <p><b>应持（卡片右上角）</b>：这只现在该占总资金的百分比 = <b>权重 × 仓位上限 × 网格系数</b>。网格系数：卫星仓在=100%，卫星仓已卖=50%；黄金闸门关着=0%。例：黄金权重 10%，上限 80%，闸门关着 → 应持 0%（那 8% 是现金）。</p>
+  <p><b>应持（卡片右上角）</b>：这只现在该占总资金的百分比 = <b>权重 × 仓位上限 × 持仓系数</b>。持仓系数三档：<b>空仓 0%</b>、<b>只持底仓 50%</b>、<b>满仓（底仓+卫星）100%</b>；黄金闸门只有 0% 和 100% 两档。</p>
+  <p>例：纳指权重 20%、仓位上限 100%、目前没建仓 → 应持 <b>0%</b>。等溢价回到 3% 以内且偏离 ≤ +8% 时建仓，应持才变成 20%。</p>
   <p><b>512890 红利低波（70%）</b>：底仓 50% 永不动，卫星 50% 做网格。偏离 MA200 高于 <b>+10%</b> 卖卫星，跌回 <b>0%</b> 买回。</p>
   <p><b>513100 纳指100（20%）</b>：底仓 50% 永不动，卫星 50% 做网格。<b>双条件触发</b>：偏离 MA200 ≥ <b>+15%</b> 或 溢价 ≥ <b>10%</b>，满足任一就卖卫星仓；要买回必须同时满足 偏离 ≤ +8% <b>且</b> 溢价 ≤ 3%。溢价高于 3% 一律不买、不加仓。</p>
   <p><b>518880 黄金（10%）</b>：只做闸门，不做网格。收盘价站上 MA200 才持有，跌破就清空。现在闸门关着就不买，不追。</p>
@@ -88,14 +89,15 @@
   // mode: grid=高抛低吸网格(底仓50%+卫星50%), gate=MA200闸门(站上持有/跌破清空)
   var ETFS = [
     {code:"sh512890", name:"红利低波", short:"512890", w:0.70, mode:"grid",
-     sell:0.10, buy:0.00, initIn:true, premMax:0.01},
+     sell:0.10, buy:0.00, state0:"FULL", premMax:0.01},
     {code:"sh513100", name:"纳指100",  short:"513100", w:0.20, mode:"grid",
-     sell:0.15, buy:0.08, initIn:false, premMax:0.03, premSell:0.10, premBuy:0.03},
+     sell:0.15, buy:0.08, state0:"NONE", premMax:0.03, premSell:0.10, premBuy:0.03},
     {code:"sh518880", name:"黄金",     short:"518880", w:0.10, mode:"gate",
-     sell:0.00, buy:0.00, initIn:false, premMax:0.01}
+     sell:0.00, buy:0.00, state0:"NONE", premMax:0.01}
   ];
+  var STATE_NAME={NONE:"空仓", BASE:"只持底仓", FULL:"满仓"};
   var TARGET_VOL = 0.10, VOL_WIN = 60, MIN_POS = 0.30;
-  var STORE="etf_state_v7", CACHE="etf_cache_v3";
+  var STORE="etf_state_v8", CACHE="etf_cache_v3";
 
   function loadState(){ try{return JSON.parse(localStorage.getItem(STORE))||{}}catch(e){return {}} }
   function saveState(s){ try{localStorage.setItem(STORE,JSON.stringify(s))}catch(e){} }
@@ -150,25 +152,23 @@
     return s/200;
   }
 
+  // 持仓状态：NONE=一分钱没有 / BASE=只有底仓50% / FULL=底仓+卫星=100%
   function stateOf(e, dev){
     var st=loadState();
-    if(st[e.code]!=="IN" && st[e.code]!=="OUT"){
-      var init;
-      // gate 模式初始一律视为空仓：只有按过"我已执行"才算真的持有，
-      // 否则黄金站上 MA200 时页面会误报"持有"，买入信号永远不会出现
-      // initIn=false 同样一律视为空仓，避免把"没买过的资产"误判成持有并提示卖出
-      if(e.mode==="gate" || !e.initIn) init = "OUT";
-      else init = (dev>=e.sell)?"OUT":"IN";
-      st[e.code]=init; saveState(st);
+    if(st[e.code]!=="NONE" && st[e.code]!=="BASE" && st[e.code]!=="FULL"){
+      var s0=e.state0||"NONE";
+      // 首次打开时若已越过卖出线，视为卫星仓已卖出，只剩底仓
+      if(s0==="FULL" && e.mode==="grid" && dev>=e.sell) s0="BASE";
+      st[e.code]=s0; saveState(st);
     }
     return st[e.code];
   }
 
-  // 资产当前仓位系数：网格=底仓0.5+卫星0.5(持有则1，卖出则0.5)；闸门=0或1
+  // 资产当前仓位系数：没建仓=0，只有底仓=0.5，满仓=1
   function posOf(e, h){
     var st=stateOf(e,h.dev);
-    if(e.mode==="gate") return st==="IN"?1.0:0.0;
-    return st==="IN"?1.0:0.5;
+    if(e.mode==="gate") return st==="FULL"?1.0:0.0;
+    return st==="FULL"?1.0:(st==="BASE"?0.5:0.0);
   }
 
   function head(e){
@@ -253,11 +253,11 @@
   function actionOf(e,h){
     var st=stateOf(e,h.dev);
     if(e.mode==="gate"){
-      if(st==="IN" && h.dev<=0)
-        return {cls:"s-sell", txt:"清空黄金", note:"跌破 MA200，闸门关闭，全部卖出（占"+pct(e.w,0)+"总仓位）", need:true, dir:"OUT"};
-      if(st==="OUT" && h.dev>0)
-        return {cls:"s-buy", txt:"买入黄金", note:"站回 MA200，闸门打开，可买入（占"+pct(e.w,0)+"总仓位）", need:true, dir:"IN"};
-      if(st==="IN")
+      if(st==="FULL" && h.dev<=0)
+        return {cls:"s-sell", txt:"清空黄金", note:"跌破 MA200，闸门关闭，全部卖出（占"+pct(e.w,0)+"总仓位）", need:true, dir:"NONE"};
+      if(st==="NONE" && h.dev>0)
+        return {cls:"s-buy", txt:"买入黄金", note:"站回 MA200，闸门打开，可买入（占"+pct(e.w,0)+"总仓位）", need:true, dir:"FULL"};
+      if(st==="FULL")
         return {cls:"s-hold", txt:"持有", note:"站在 MA200 上 "+pct(h.dev)+"，闸门开着，不用动"};
       return {cls:"s-wait", txt:"空仓等待", note:"低于 MA200 "+pct(-h.dev)+"，闸门关着，站上 "+price(h.ma)+" 才买，不抄底"};
     }
@@ -268,21 +268,23 @@
     var whySell = (e.premSell && isFinite(h.prem) && h.prem>=e.premSell)
       ? ("溢价 "+pct(h.prem)+" 已超过 "+(e.premSell*100).toFixed(0)+"%，卖卫星仓（卖贵不卖便宜）")
       : ("偏离到 +"+(e.sell*100).toFixed(0)+"% 卖出线，卖掉这只的卫星仓（占该资产一半，底仓 50% 不动）");
-    if(st==="IN" && sellHit)
-      return {cls:"s-sell", txt:"卖出卫星仓", note:whySell, need:true, dir:"OUT"};
-    if(st==="OUT" && buyOk)
-      return {cls:"s-buy", txt:"买回卫星仓", note:"偏离回到 +"+(e.buy*100).toFixed(0)+"% 且溢价降到 "+(e.premBuy*100).toFixed(0)+"% 以内，买回这只的卫星仓（占该资产一半）", need:true, dir:"IN"};
-    if(st==="IN"){
+    if(st==="FULL" && sellHit)
+      return {cls:"s-sell", txt:"卖出卫星仓", note:whySell, need:true, dir:"BASE"};
+    if(st==="BASE" && buyOk)
+      return {cls:"s-buy", txt:"买回卫星仓", note:"偏离回到 +"+(e.buy*100).toFixed(0)+"% 且溢价降到 "+(e.premBuy*100).toFixed(0)+"% 以内，买回这只的卫星仓（占该资产一半）", need:true, dir:"FULL"};
+    if(st==="NONE" && buyOk)
+      return {cls:"s-buy", txt:"建仓买入", note:"条件到了，一次性买入（占"+pct(e.w,0)+"总仓位，其中一半是底仓）", need:true, dir:"FULL"};
+    if(st==="FULL"){
       var note="再涨 "+pct(e.sell-h.dev)+" 到 "+price(h.ma*(1+e.sell))+" 才减卫星仓";
       if(e.premSell) note += "，或溢价涨到 "+(e.premSell*100).toFixed(0)+"% 也减";
       return {cls:"s-hold", txt:"持有", note:note};
     }
-    var waitNote="跌到 "+lowLine+"（还需 "+pct(h.dev-e.buy)+"）才买回卫星仓";
     if(e.premBuy){
-      if(isFinite(h.prem) && h.prem>e.premBuy) waitNote="溢价 "+pct(h.prem)+" 高于 "+(e.premBuy*100).toFixed(0)+"%，不买（等溢价回落）";
-      else waitNote="等偏离回到 +"+(e.buy*100).toFixed(0)+"% 以下才买回";
+      if(isFinite(h.prem) && h.prem>e.premBuy)
+        return {cls:"s-wait", txt:"等待，不要买", note:"溢价 "+pct(h.prem)+" 高于 "+(e.premBuy*100).toFixed(0)+"%，不买（等溢价回落到 "+(e.premBuy*100).toFixed(0)+"% 以内）"};
+      return {cls:"s-wait", txt:"等待，不要买", note:"等偏离回到 +"+(e.buy*100).toFixed(0)+"% 以下再建仓"};
     }
-    return {cls:"s-wait", txt:"等待，不要买", note:waitNote};
+    return {cls:"s-wait", txt:"等待，不要买", note:"跌到 "+lowLine+"（还需 "+pct(h.dev-e.buy)+"）才买回卫星仓"};
   }
 
   function cardHTML(e, volPos){
@@ -348,15 +350,17 @@
   function extras(){
     var st=loadState();
     var btns=ETFS.map(function(e){
-      var cur=st[e.code]||"—";
-      return '<button class="link" data-code="'+e.code+'">'+e.short+'：当前'+
-        (cur==="IN"?"持有":"空仓")+' → 点此改为'+(cur==="IN"?"空仓":"持有")+'</button>';
+      var cur=st[e.code]||e.state0;
+      var cyc = (e.mode==="gate") ? {NONE:"FULL",FULL:"NONE"} : {NONE:"BASE",BASE:"FULL",FULL:"NONE"};
+      var nxt = cyc[cur]||"NONE";
+      return '<button class="link" data-code="'+e.code+'" data-next="'+nxt+'">'+e.short+'：当前'+
+        (STATE_NAME[cur]||cur)+' → 点此改为'+STATE_NAME[nxt]+'</button>';
     }).join("<br>");
     document.getElementById("extra").innerHTML = btns;
     Array.prototype.forEach.call(document.querySelectorAll("[data-code]"), function(b){
       b.onclick=function(){
         var c=b.getAttribute("data-code"); var s=loadState();
-        s[c]=(s[c]==="IN")?"OUT":"IN"; saveState(s); render();
+        s[c]=b.getAttribute("data-next"); saveState(s); render();
       };
     });
   }
