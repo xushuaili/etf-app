@@ -75,12 +75,12 @@
   <summary>触发规则 / 名词 / 状态修正</summary>
   <table class="rules">
     <tr><th>标的</th><th>减仓</th><th>加仓</th></tr>
-    <tr><td>512890<br><i>70%</i></td><td>偏离 ≥ +10%</td><td>偏离 ≤ 0% 且 溢价 ≤ 1%</td></tr>
-    <tr><td>513100<br><i>20%</i></td><td>偏离 ≥ +15%<br>或 溢价 ≥ 10%</td><td>偏离 ≤ +8%<br>且 溢价 ≤ 3%</td></tr>
-    <tr><td>518880<br><i>10%</i></td><td>跌破 MA200</td><td>站上 MA200 且 溢价 ≤ 1%</td></tr>
+    <tr><td>512890<br><i>70%</i></td><td>偏离 ≥ +10%（卖卫星仓）</td><td>偏离 ≤ 0% 且 溢价 ≤ 1%</td></tr>
+    <tr><td>513100<br><i>20%</i></td><td>跌破 MA200<br>或 溢价 ≥ 10%（清空）</td><td>站上 MA200<br>且 溢价 ≤ 3%</td></tr>
+    <tr><td>518880<br><i>10%</i></td><td>跌破 MA200（清空）</td><td>站上 MA200 且 溢价 ≤ 1%</td></tr>
   </table>
-  <p>减仓只卖卫星仓（该资产的一半），底仓 50% 不动。加仓必须同时满足两个条件。</p>
-  <p><b>溢价</b> = 现价 ÷ 净值 − 1。512890、518880 超 1% 别追；513100 超 3% 不买、超 10% 减卫星仓。</p>
+  <p>红利低波是均值回归资产，用网格：减仓只卖卫星仓（一半），底仓 50% 不动。纳指和黄金是趋势资产，用闸门：跌破 MA200 全卖，站上才买，不抄底。</p>
+  <p><b>溢价</b> = 现价 ÷ 净值 − 1。512890、518880 超 1% 别追；513100 超 3% 不买、持有中超 10% 清空。</p>
   <p><b>价格分位</b> = 现价在近3年价格里的位置，0% 最便宜，100% 最贵。</p>
   <p><b>跟踪差20日</b> = 512890 涨幅 − 中证红利低波指数涨幅。正常 0~+1%，低于 -3% 需核对。</p>
   <p id="extra"></p>
@@ -93,11 +93,11 @@
 (function(){
   // mode: grid=高抛低吸网格(底仓50%+卫星50%), gate=MA200闸门(站上持有/跌破清空)
   var ETFS = [
-    {code:"sh512890", name:"红利低波", short:"512890", w:0.70, mode:"grid",
+    {code:"sh512890", name:"红利低波", short:"512890", w:0.70, mode:"grid", label:"红利",
      sell:0.10, buy:0.00, state0:"FULL", premMax:0.01},
-    {code:"sh513100", name:"纳指100",  short:"513100", w:0.20, mode:"grid",
-     sell:0.15, buy:0.08, state0:"NONE", premMax:0.03, premSell:0.10, premBuy:0.03},
-    {code:"sh518880", name:"黄金",     short:"518880", w:0.10, mode:"gate",
+    {code:"sh513100", name:"纳指100",  short:"513100", w:0.20, mode:"gate", label:"纳指",
+     sell:0.00, buy:0.00, state0:"NONE", premMax:0.03, premSell:0.10, premBuy:0.03},
+    {code:"sh518880", name:"黄金",     short:"518880", w:0.10, mode:"gate", label:"黄金",
      sell:0.00, buy:0.00, state0:"NONE", premMax:0.01}
   ];
   var STATE_NAME={NONE:"空仓", BASE:"只持底仓", FULL:"满仓"};
@@ -258,20 +258,30 @@
   function actionOf(e,h){
     var st=stateOf(e,h.dev);
     if(e.mode==="gate"){
-      if(st==="FULL" && h.dev<=0)
-        return {cls:"s-sell", txt:"清空黄金", note:"跌破 MA200，闸门关闭，全部卖出（占"+pct(e.w,0)+"总仓位）", need:true, dir:"NONE"};
-      if(st==="NONE" && h.dev>0){
-        if(isFinite(h.prem) && e.premMax && h.prem>e.premMax)
-          return {cls:"s-wait", txt:"等待，不要买", note:"虽站回 MA200，但溢价 "+pct(h.prem)+" 超过 "+(e.premMax*100).toFixed(0)+"%，不追高，等溢价回落"};
-        return {cls:"s-buy", txt:"买入黄金", note:"站回 MA200，闸门打开，可买入（占"+pct(e.w,0)+"总仓位）", need:true, dir:"FULL"};
+      // 闸门：站上MA200持有/跌破清空；带溢价的（纳指）另加两条：溢价≥premSell清空、>premBuy不买
+      var sellHit = h.dev<=0 || (e.premSell && isFinite(h.prem) && h.prem>=e.premSell);
+      if(st==="FULL" && sellHit){
+        var why = (e.premSell && isFinite(h.prem) && h.prem>=e.premSell)
+          ? "溢价 "+pct(h.prem)+" 超过 "+(e.premSell*100).toFixed(0)+"%，卖贵不卖便宜，全部卖出（占"+pct(e.w,0)+"总仓位）"
+          : "跌破 MA200，闸门关闭，全部卖出（占"+pct(e.w,0)+"总仓位）";
+        return {cls:"s-sell", txt:"清空"+e.label, note:why, need:true, dir:"NONE"};
       }
-      if(st==="FULL")
-        return {cls:"s-hold", txt:"持有", note:"站在 MA200 上 "+pct(h.dev)+"，闸门开着，不用动"};
+      if(st==="NONE" && h.dev>0){
+        var cap = e.premBuy || e.premMax;
+        if(isFinite(h.prem) && cap && h.prem>cap)
+          return {cls:"s-wait", txt:"等待，不要买", note:"虽站回 MA200，但溢价 "+pct(h.prem)+" 超过 "+(cap*100).toFixed(0)+"%，不追高，等溢价回落"};
+        return {cls:"s-buy", txt:"买入"+e.label, note:"站回 MA200，闸门打开，可买入（占"+pct(e.w,0)+"总仓位）", need:true, dir:"FULL"};
+      }
+      if(st==="FULL"){
+        var hn="站上 MA200 "+pct(h.dev)+"，闸门开着，不用动";
+        if(e.premSell) hn += "；溢价涨到 "+(e.premSell*100).toFixed(0)+"% 也会清空";
+        return {cls:"s-hold", txt:"持有", note:hn};
+      }
       return {cls:"s-wait", txt:"等待，不要买", note:"低于 MA200 "+pct(-h.dev)+"，闸门关着，站上 "+price(h.ma)+" 才买，不抄底"};
     }
     var lowLine = price(h.ma*(1+e.buy));
-    // 双条件（仅配置了 premSell/premBuy 的标的启用，目前是 513100）
-    var premCap = e.premBuy || e.premMax;   // 买回/建仓的溢价上限：513100 3%，512890 1%
+    // 网格分支（目前只剩 512890）：溢价超过 premMax 时买入信号会被拦截
+    var premCap = e.premBuy || e.premMax;
     var sellHit = h.dev>=e.sell || (e.premSell && isFinite(h.prem) && h.prem>=e.premSell);
     var buyOk  = h.dev<=e.buy && (!premCap || !isFinite(h.prem) || h.prem<=premCap);
     var whySell = (e.premSell && isFinite(h.prem) && h.prem>=e.premSell)
@@ -280,7 +290,7 @@
     if(st==="FULL" && sellHit)
       return {cls:"s-sell", txt:"卖出卫星仓", note:whySell, need:true, dir:"BASE"};
     if(st==="BASE" && buyOk)
-      return {cls:"s-buy", txt:"买回卫星仓", note:"偏离回到 +"+(e.buy*100).toFixed(0)+"% 且溢价降到 "+(e.premBuy*100).toFixed(0)+"% 以内，买回这只的卫星仓（占该资产一半）", need:true, dir:"FULL"};
+      return {cls:"s-buy", txt:"买回卫星仓", note:"偏离回到 +"+(e.buy*100).toFixed(0)+"% 以下"+(premCap?" 且溢价 ≤"+(premCap*100).toFixed(0)+"%":"")+"，买回这只的卫星仓（占该资产一半）", need:true, dir:"FULL"};
     if(st==="NONE" && buyOk)
       return {cls:"s-buy", txt:"建仓买入", note:"条件到了，一次性买入（占"+pct(e.w,0)+"总仓位，其中一半是底仓）", need:true, dir:"FULL"};
     if(st==="FULL"){
